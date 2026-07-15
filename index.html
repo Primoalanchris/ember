@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0B0F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Ember</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: #0A0B0F;
+      color: #fff;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      min-height: 100dvh;
+    }
+    .safe-wrap {
+      padding-top:    max(env(safe-area-inset-top),    28px);
+      padding-bottom: max(env(safe-area-inset-bottom), 28px);
+      padding-left:   max(env(safe-area-inset-left),   20px);
+      padding-right:  max(env(safe-area-inset-right),  20px);
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .ring-bg   { stroke: #1E2030; }
+    .ring-fill {
+      stroke: #FF8A3D;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.55s cubic-bezier(0.4,0,0.2,1);
+    }
+    .task-row {
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      border-radius: 16px;
+      background: #13151C;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.12s, transform 0.08s;
+      margin-bottom: 8px;
+      border: 1px solid #1E2030;
+    }
+    .task-row:active { transform: scale(0.965); background: #191C29; }
+    .cb {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid #3D4160;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.18s, border-color 0.18s;
+    }
+    .cb.on { background: #FF8A3D; border-color: #FF8A3D; }
+    .task-lbl {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
+      color: #E5E7EB;
+    }
+    .task-lbl.done { text-decoration: line-through; color: #3D4160; }
+    .del-btn {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: rgba(255,60,60,0.1);
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s;
+    }
+    .edit-active .del-btn { opacity: 1; pointer-events: auto; }
+    input[type=text] {
+      flex: 1;
+      background: #13151C;
+      border: 1.5px solid #1E2030;
+      border-radius: 12px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      padding: 13px 14px;
+      transition: border-color 0.15s;
+      min-width: 0;
+    }
+    input[type=text]:focus { border-color: #FF8A3D; }
+    input[type=text]::placeholder { color: #3D4160; }
+    .btn {
+      padding: 14px 0;
+      border-radius: 12px;
+      font-family: 'Familjen Grotesk', system-ui, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1.5px solid #1E2030;
+      background: #13151C;
+      color: #9CA3AF;
+      text-align: center;
+      flex: 1;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn.edit-on { border-color: #FF8A3D; color: #FF8A3D; }
+    .btn-add {
+      background: #FF8A3D;
+      border: none;
+      border-radius: 12px;
+      color: #0A0B0F;
+      font-family: 'Familjen Grotesk', system-ui, sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 13px 20px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .streak-glow { text-shadow: 0 0 28px rgba(255,138,61,0.55); }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #1E2030; border-radius: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      .ring-fill, .task-row, .cb { transition: none; }
+      .task-row:active { transform: none; }
+    }
+    @keyframes flash-ring {
+      0%,100% { filter: drop-shadow(0 0 0px #FF8A3D); }
+      50%      { filter: drop-shadow(0 0 14px #FF8A3D); }
+    }
+    .ring-flash { animation: flash-ring 0.6s ease; }
+    @media (prefers-reduced-motion: reduce) { .ring-flash { animation: none; } }
+  </style>
+</head>
+<body>
+<div class="safe-wrap">
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+    <div>
+      <h1 style="font-family:'Familjen Grotesk',system-ui,sans-serif;font-size:30px;font-weight:700;margin:0;letter-spacing:-0.5px;">Ember</h1>
+      <p id="dateEl" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#3D4160;margin:5px 0 0;letter-spacing:0.04em;"></p>
+    </div>
+    <div style="text-align:center;padding-top:2px;">
+      <div id="streakEl" class="streak-glow" style="font-family:'Familjen Grotesk',system-ui,sans-serif;font-size:34px;font-weight:700;color:#FF8A3D;line-height:1;">0</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#3D4160;letter-spacing:0.1em;margin-top:3px;">STREAK</div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:center;margin-bottom:24px;">
+    <div style="position:relative;width:164px;height:164px;">
+      <svg id="ringSvg" width="164" height="164" viewBox="0 0 164 164" style="display:block;">
+        <circle class="ring-bg" cx="82" cy="82" r="70" fill="none" stroke-width="10"/>
+        <circle class="ring-fill" id="ringEl" cx="82" cy="82" r="70"
+                fill="none" stroke-width="10"
+                stroke-dasharray="439.82" stroke-dashoffset="439.82"
+                transform="rotate(-90 82 82)"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+        <span id="pctEl" style="font-family:'Familjen Grotesk',system-ui,sans-serif;font-size:32px;font-weight:700;line-height:1;">0%</span>
+        <span id="fracEl" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#3D4160;margin-top:5px;">0/0</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="listEl"></div>
+
+  <div id="addFormEl" style="display:none;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;align-items:stretch;">
+      <input id="newInputEl" type="text" placeholder="New habit..." maxlength="60" autocomplete="off">
+      <button class="btn-add" id="addBtnEl">Add</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-top:6px;">
+    <button class="btn" id="editBtnEl">Edit</button>
+    <button class="btn" id="newDayBtnEl">Start new day</button>
+  </div>
+
+</div>
+<script>
+var R=70,CIRC=2*Math.PI*R;
+var DEFAULTS=[
+  {id:"d1",label:"Brush teeth",checked:false},
+  {id:"d2",label:"Stretch",checked:false},
+  {id:"d3",label:"Drink water 80oz",checked:false},
+  {id:"d4",label:"Gym / Workout",checked:false}
+];
+var S={dateKey:"",tasks:[],streak:0,lastCompleted:null,awardedDate:null,editMode:false};
+
+function save(){try{localStorage.setItem("ember_v1",JSON.stringify(S));}catch(e){}}
+function load(){try{var r=localStorage.getItem("ember_v1");if(r)Object.assign(S,JSON.parse(r));}catch(e){}}
+function pad(n){return String(n).padStart(2,"0");}
+function todayKey(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function yesterdayKey(){var d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function fmtDate(key){
+  if(!key)return "";
+  var parts=key.split("-").map(Number);
+  return new Date(parts[0],parts[1]-1,parts[2]).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+}
+
+function checkReset(){
+  var tk=todayKey();if(S.dateKey===tk)return;
+  if(S.lastCompleted!==yesterdayKey())S.streak=0;
+  S.tasks=S.tasks.map(function(t){return Object.assign({},t,{checked:false});});
+  S.dateKey=tk;S.awardedDate=null;S.editMode=false;save();render();
+}
+function forceNewDay(){
+  vibe([30]);var tk=todayKey();
+  if(S.lastCompleted!==yesterdayKey()&&S.lastCompleted!==tk)S.streak=0;
+  S.tasks=S.tasks.map(function(t){return Object.assign({},t,{checked:false});});
+  S.dateKey=tk;S.awardedDate=null;S.editMode=false;save();render();
+}
+function maybeAwardStreak(){
+  var tk=todayKey();
+  if(S.awardedDate===tk||!S.tasks.length||!S.tasks.every(function(t){return t.checked;}))return;
+  S.streak++;S.lastCompleted=tk;S.awardedDate=tk;save();
+  var svg=document.getElementById("ringSvg");
+  svg.classList.remove("ring-flash");void svg.offsetWidth;svg.classList.add("ring-flash");
+}
+function vibe(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+function render(){
+  document.getElementById("dateEl").textContent=fmtDate(S.dateKey||todayKey());
+  document.getElementById("streakEl").textContent=S.streak;
+  var total=S.tasks.length,done=S.tasks.filter(function(t){return t.checked;}).length;
+  var pct=total?done/total:0;
+  document.getElementById("ringEl").style.strokeDashoffset=CIRC*(1-pct);
+  document.getElementById("pctEl").textContent=Math.round(pct*100)+"%";
+  document.getElementById("fracEl").textContent=done+"/"+total;
+
+  var list=document.getElementById("listEl");list.innerHTML="";
+  S.tasks.forEach(function(task,i){
+    var row=document.createElement("div");
+    row.className="task-row"+(S.editMode?" edit-active":"");
+
+    var cb=document.createElement("div");
+    cb.className="cb"+(task.checked?" on":"");
+    if(task.checked)cb.innerHTML='<svg width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1.5 5L5 8.5L11.5 1.5" stroke="#0A0B0F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    var lbl=document.createElement("span");
+    lbl.className="task-lbl"+(task.checked?" done":"");
+    lbl.textContent=task.label;
+
+    var del=document.createElement("button");
+    del.className="del-btn";
+    del.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#FF5555" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    del.addEventListener("click",function(e){
+      e.stopPropagation();vibe([15]);S.tasks.splice(i,1);save();render();
+    });
+
+    row.appendChild(cb);row.appendChild(lbl);row.appendChild(del);
+    row.addEventListener("click",function(){
+      if(S.editMode)return;
+      vibe([10]);S.tasks[i].checked=!S.tasks[i].checked;save();maybeAwardStreak();render();
+    });
+    list.appendChild(row);
+  });
+
+  var eb=document.getElementById("editBtnEl"),af=document.getElementById("addFormEl");
+  if(S.editMode){eb.textContent="Done";eb.classList.add("edit-on");af.style.display="flex";}
+  else{eb.textContent="Edit";eb.classList.remove("edit-on");af.style.display="none";}
+}
+
+document.getElementById("editBtnEl").addEventListener("click",function(){vibe([15]);S.editMode=!S.editMode;render();});
+document.getElementById("newDayBtnEl").addEventListener("click",forceNewDay);
+document.getElementById("addBtnEl").addEventListener("click",function(){
+  var inp=document.getElementById("newInputEl"),val=inp.value.trim();
+  if(!val)return;vibe([15]);
+  S.tasks.push({id:"c"+Date.now(),label:val,checked:false});
+  inp.value="";inp.focus();save();render();
+});
+document.getElementById("newInputEl").addEventListener("keydown",function(e){
+  if(e.key==="Enter")document.getElementById("addBtnEl").click();
+});
+window.addEventListener("focus",checkReset);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)checkReset();});
+setInterval(checkReset,20000);
+
+(function(){
+  function makeIcon(sz){
+    var c=document.createElement("canvas");c.width=c.height=sz;
+    var ctx=c.getContext("2d"),r=sz*0.2;
+    ctx.fillStyle="#0A0B0F";
+    ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(sz-r,0);ctx.quadraticCurveTo(sz,0,sz,r);
+    ctx.lineTo(sz,sz-r);ctx.quadraticCurveTo(sz,sz,sz-r,sz);
+    ctx.lineTo(r,sz);ctx.quadraticCurveTo(0,sz,0,sz-r);
+    ctx.lineTo(0,r);ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();ctx.fill();
+    var cx=sz/2,cy=sz*0.55;
+    var g=ctx.createRadialGradient(cx,cy-sz*0.06,sz*0.02,cx,cy,sz*0.3);
+    g.addColorStop(0,"#FFBA6F");g.addColorStop(0.5,"#FF8A3D");g.addColorStop(1,"rgba(255,90,0,0)");
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,sz*0.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="#FFC890";ctx.beginPath();ctx.arc(cx,cy-sz*0.05,sz*0.1,0,Math.PI*2);ctx.fill();
+    return c.toDataURL("image/png");
+  }
+  var m={name:"Ember",short_name:"Ember",description:"Daily habit tracker",
+    start_url:"./",scope:"./",display:"standalone",orientation:"portrait",
+    background_color:"#0A0B0F",theme_color:"#FF8A3D",
+    icons:[
+      {src:makeIcon(192),sizes:"192x192",type:"image/png",purpose:"any maskable"},
+      {src:makeIcon(512),sizes:"512x512",type:"image/png",purpose:"any maskable"}
+    ]};
+  var link=document.createElement("link");link.rel="manifest";
+  link.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:"application/manifest+json"}));
+  document.head.appendChild(link);
+})();
+
+(function init(){
+  var fresh=!localStorage.getItem("ember_v1");
+  load();
+  if(fresh){S.tasks=JSON.parse(JSON.stringify(DEFAULTS));S.dateKey=todayKey();save();}
+  checkReset();render();
+})();
+</script>
+</body>
+</html>
