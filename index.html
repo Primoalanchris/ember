@@ -9,6 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ember">
+<link rel="manifest" href="./manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -1137,13 +1138,6 @@ function escHtml(s) {
 //  INIT
 // ═══════════════════════════════════════════
 (function init() {
-  // PWA manifest
-  const icon="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23080A12'/%3E%3Cpath d='M256 80c12 60 90 80 90 176a90 90 0 0 1-180 0c0-32 14-50 26-70 8 22 20 34 34 40-8-48 10-100 30-146z' fill='%23FF6B35'/%3E%3C/svg%3E";
-  const manifest={name:'Ember — daily habits',short_name:'Ember',start_url:'.',scope:'.',display:'standalone',background_color:'#080A12',theme_color:'#080A12',orientation:'portrait',icons:[{src:icon,sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]};
-  const link=document.createElement('link'); link.rel='manifest';
-  link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));
-  document.head.appendChild(link);
-
   rollover();
   render();
   spawnParticles();
@@ -1172,6 +1166,11 @@ function escHtml(s) {
     const greeting=h<12?'morning':h<17?'afternoon':'evening';
     showBanner('🔥','Welcome back',`Good ${greeting}. ${S.habits.filter(h=>h.done).length} of ${S.habits.length} habits lit today.`);
   }, 800);
+
+  // Service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
 })();
 </script>
 </body>
