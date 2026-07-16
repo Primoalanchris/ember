@@ -208,9 +208,13 @@ tailwind.config = {
     box-shadow: 0 0 100px rgba(255,107,53,.65), 0 0 220px rgba(255,209,102,.35),
                 inset 0 1px 0 rgba(255,255,255,.30), inset 0 -1px 0 rgba(0,0,0,.30);
   }
+  #liqWave   { transition: transform 0.8s ease-out; }
+  #liqWave.no-transition { transition: none; }
+  #liqWobble { transition: transform 0.8s ease-out; }
   @media (prefers-reduced-motion: reduce) {
     #waveDrift { animation: none !important; }
-    #liqWave   { transition: none !important; }
+    #liqWave,
+    #liqWobble { transition: none !important; }
   }
 
   /* ── Motion idle indicator ── */
@@ -320,21 +324,24 @@ tailwind.config = {
           </defs>
           <g clip-path="url(#orbClip)">
             <!-- liqWave: translateY controls fill level (220=empty → 0=full) -->
-            <g id="liqWave" style="transform:translateY(220px);transition:transform 0.8s ease-out;will-change:transform">
-              <!-- waveDrift: continuous horizontal drift -->
-              <g id="waveDrift" style="animation:waveDrift 4.8s linear infinite">
-                <!-- Depth wave (slightly behind, offset phase) -->
-                <path d="M-440,9 C-385,3 -275,15 -220,9 C-165,3 -55,15 0,9 C55,3 165,15 220,9 C275,3 385,15 440,9 L440,220 L-440,220 Z"
-                      fill="rgba(255,107,53,0.42)"/>
-                <!-- Front wave with gradient body -->
-                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0 L440,220 L-440,220 Z"
-                      fill="url(#liqGrad)" opacity="0.93"/>
-                <!-- Surface bright line + glow -->
-                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
-                      fill="none" stroke="rgba(255,228,140,0.70)" stroke-width="3"
-                      style="filter:blur(1.5px)"/>
-                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
-                      fill="none" stroke="rgba(255,255,200,0.35)" stroke-width="1.2"/>
+            <g id="liqWave" style="transform:translateY(220px)">
+              <!-- liqWobble: additive slosh offset — never touched by setLiquidLevel -->
+              <g id="liqWobble">
+                <!-- waveDrift: continuous horizontal drift -->
+                <g id="waveDrift" style="animation:waveDrift 4.8s linear infinite">
+                  <!-- Depth wave (slightly behind, offset phase) -->
+                  <path d="M-440,9 C-385,3 -275,15 -220,9 C-165,3 -55,15 0,9 C55,3 165,15 220,9 C275,3 385,15 440,9 L440,220 L-440,220 Z"
+                        fill="rgba(255,107,53,0.42)"/>
+                  <!-- Front wave with gradient body -->
+                  <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0 L440,220 L-440,220 Z"
+                        fill="url(#liqGrad)" opacity="0.93"/>
+                  <!-- Surface bright line + glow -->
+                  <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
+                        fill="none" stroke="rgba(255,228,140,0.70)" stroke-width="3"
+                        style="filter:blur(1.5px)"/>
+                  <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
+                        fill="none" stroke="rgba(255,255,200,0.35)" stroke-width="1.2"/>
+                </g>
               </g>
             </g>
           </g>
@@ -388,7 +395,7 @@ tailwind.config = {
     <input id="habitInput" type="text" maxlength="42" placeholder="Add a habit…"
       class="flex-1 min-w-0 rounded-2xl px-4 py-3.5 text-[15px] bg-panel border border-white/08 placeholder:text-dusk/50 focus:outline-none focus:border-ember/50 transition-colors text-bone"
       style="border-color:rgba(255,255,255,0.08)">
-    <button onclick="addHabit()" class="ripple-host shrink-0 rounded-2xl px-5 py-3.5 font-bold text-[15px] text-void transition-all active:scale-95"
+    <button id="addHabitBtn" onclick="addHabit()" class="ripple-host shrink-0 rounded-2xl px-5 py-3.5 font-bold text-[15px] text-void transition-all active:scale-95"
       style="background:linear-gradient(135deg,#FF6B35,#FFD166);box-shadow:0 8px 24px rgba(255,107,53,.25)">Add</button>
   </div>
 
@@ -600,12 +607,12 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) rollove
 // ═══════════════════════════════════════════
 let editing = false;
 
-function toggleHabit(id) {
+function toggleHabit(id, e) {
   const h = S.habits.find(h=>h.id===id);
   if (!h) return;
   h.done = !h.done;
   buzz(h.done ? [12,8,18] : 8);
-  if (h.done) { S.totalCompleted++; rippleEffect(event); sloshWave(); }
+  if (h.done) { S.totalCompleted++; rippleEffect(e); sloshWave(); }
   creditIfComplete();
   save(); render();
 }
@@ -660,26 +667,25 @@ let _sloshTmr  = null;
 function setLiquidLevel(pct) {
   _liqPct = pct;
   const wave = document.getElementById('liqWave');
-  if (wave) {
-    wave.style.transform = `translateY(${220 * (1 - pct / 100)}px)`;
-  }
+  if (wave) wave.style.transform = `translateY(${220 * (1 - pct / 100)}px)`;
   animatePct(pct);
   document.getElementById('orbBody').classList.toggle('liquid-full', pct === 100);
 }
 
+// sloshWave operates ONLY on #liqWobble — an additive child layer —
+// so it can never race with setLiquidLevel which owns #liqWave.
 function sloshWave() {
-  const wave = document.getElementById('liqWave');
-  if (!wave) return;
-  const base = 220 * (1 - _liqPct / 100);
+  const wobble = document.getElementById('liqWobble');
+  if (!wobble) return;
   clearTimeout(_sloshTmr);
-  wave.style.transition = 'transform 0.11s ease-out';
-  wave.style.transform  = `translateY(${base - 10}px)`;
+  wobble.style.transition = 'transform 0.11s ease-out';
+  wobble.style.transform  = 'translateY(-10px)';
   _sloshTmr = setTimeout(() => {
-    wave.style.transition = 'transform 0.50s cubic-bezier(.22,1,.36,1)';
-    wave.style.transform  = `translateY(${base + 5}px)`;
+    wobble.style.transition = 'transform 0.50s cubic-bezier(.22,1,.36,1)';
+    wobble.style.transform  = 'translateY(5px)';
     _sloshTmr = setTimeout(() => {
-      wave.style.transition = 'transform 0.80s ease-out';
-      wave.style.transform  = `translateY(${base}px)`;
+      wobble.style.transition = 'transform 0.80s ease-out';
+      wobble.style.transform  = 'translateY(0)';
     }, 260);
   }, 110);
 }
@@ -741,8 +747,8 @@ function makeHabitRow(h, idx=0) {
   div.setAttribute('aria-pressed', h.done);
   div.setAttribute('tabindex','0');
   div.setAttribute('aria-label', h.label);
-  div.onclick = (e) => { if(e.target.closest('.del-btn')) return; toggleHabit(h.id); };
-  div.onkeydown = (e) => { if(e.key===' '||e.key==='Enter') toggleHabit(h.id); };
+  div.onclick = (e) => { if(e.target.closest('.del-btn')) return; toggleHabit(h.id, e); };
+  div.onkeydown = (e) => { if(e.key===' '||e.key==='Enter') toggleHabit(h.id, e); };
 
   div.innerHTML = `
     <div class="check-circle">
@@ -1134,13 +1140,18 @@ function showPage(name) {
 function buzz(p) { if(navigator.vibrate) try{navigator.vibrate(p);}catch{} }
 
 function rippleEffect(e) {
-  if(!e||!e.currentTarget) return;
-  const el=e.currentTarget; const r=el.getBoundingClientRect();
-  const rip=document.createElement('span'); rip.className='ripple';
-  const size=Math.max(el.offsetWidth,el.offsetHeight);
-  const x=(e.clientX-r.left)-size/2, y=(e.clientY-r.top)-size/2;
-  rip.style.cssText=`width:${size}px;height:${size}px;left:${x}px;top:${y}px`;
-  el.appendChild(rip); setTimeout(()=>rip.remove(), 500);
+  if (!e || !e.currentTarget) return;
+  const el = e.currentTarget;
+  const r  = el.getBoundingClientRect();
+  const rip = document.createElement('span');
+  rip.className = 'ripple';
+  const size = Math.max(el.offsetWidth, el.offsetHeight);
+  // For keyboard events clientX/Y are absent — centre the ripple on the element
+  const x = (e.clientX != null ? e.clientX - r.left : r.width  / 2) - size / 2;
+  const y = (e.clientY != null ? e.clientY - r.top  : r.height / 2) - size / 2;
+  rip.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px`;
+  el.appendChild(rip);
+  setTimeout(() => rip.remove(), 500);
 }
 
 let toastTimer;
@@ -1199,8 +1210,23 @@ function escHtml(s) {
 //  INIT
 // ═══════════════════════════════════════════
 (function init() {
-  rollover();
-  render();
+  // Disable liquid transition for the very first paint so the orb
+  // appears at the correct level instantly with no animated jump.
+  const waveEl = document.getElementById('liqWave');
+  if (waveEl) waveEl.classList.add('no-transition');
+
+  // rollover() calls render() internally when the day has changed;
+  // skip the explicit render() if it already ran to avoid a double call.
+  if (!rollover()) render();
+
+  // Two rAFs: first lets the browser commit the correct transform to the
+  // compositor, second re-enables the transition for all future updates.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (waveEl) waveEl.classList.remove('no-transition');
+    });
+  });
+
   spawnParticles();
   startMotionDetection();
   getLocation();
@@ -1213,7 +1239,7 @@ function escHtml(s) {
   document.getElementById('habitInput').addEventListener('keydown', e => { if(e.key==='Enter') addHabit(); });
 
   // Ripple on add button
-  document.querySelector('[onclick="addHabit()"]').addEventListener('click', rippleEffect);
+  document.getElementById('addHabitBtn').addEventListener('click', rippleEffect);
 
   // Restore api key UI
   if(S.apiKey) {
@@ -1228,9 +1254,24 @@ function escHtml(s) {
     showBanner('🔥','Welcome back',`Good ${greeting}. ${S.habits.filter(h=>h.done).length} of ${S.habits.length} habits lit today.`);
   }, 800);
 
-  // Service worker
+  // Service worker — auto-reload when a new version activates
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const next = reg.installing;
+        next.addEventListener('statechange', () => {
+          // Only reload for updates (not first install)
+          if (next.state === 'installed' && navigator.serviceWorker.controller) {
+            // New SW installed; controllerchange fires when it takes over
+          }
+        });
+      });
+    }).catch(() => {});
+
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!reloaded) { reloaded = true; window.location.reload(); }
+    });
   }
 })();
 </script>

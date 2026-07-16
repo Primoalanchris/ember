@@ -1,14 +1,13 @@
-const CACHE = 'ember-cache-v3';
+const CACHE = 'ember-cache-v5';
 const PRECACHE = ['./', './index.html'];
 
 const CDN_HOSTS = ['cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
-// ── Install: pre-cache shell ────────────────────────────────────────────────
+// ── Install: pre-cache shell, skip waiting immediately ───────────────────────
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(PRECACHE))
   );
 });
 
