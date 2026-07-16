@@ -199,10 +199,19 @@ tailwind.config = {
   }
   .notif-banner.show { transform: translateX(-50%) translateY(0); }
 
-  /* ── Progress ring ── */
-  .ring-svg { transform: rotate(-90deg); }
-  .ring-bg { stroke: rgba(255,255,255,0.06); }
-  .ring-fill { stroke: url(#ringGrad); stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.22,1,.36,1); }
+  /* ── Liquid fill ── */
+  @keyframes waveDrift {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-220px); }
+  }
+  .orb-body.liquid-full {
+    box-shadow: 0 0 100px rgba(255,107,53,.65), 0 0 220px rgba(255,209,102,.35),
+                inset 0 1px 0 rgba(255,255,255,.30), inset 0 -1px 0 rgba(0,0,0,.30);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #waveDrift { animation: none !important; }
+    #liqWave   { transition: none !important; }
+  }
 
   /* ── Motion idle indicator ── */
   .idle-pulse { animation: idlePulse 2s ease-in-out infinite; }
@@ -296,20 +305,44 @@ tailwind.config = {
       <div class="orb-halo"></div>
       <div class="orb-halo-2"></div>
       <div class="orb-body" id="orbBody">
-        <svg class="ring-svg" width="160" height="160" viewBox="0 0 160 160" style="position:absolute">
+        <!-- Liquid fill SVG — clipped to orb circle -->
+        <svg id="liquidSvg" viewBox="0 0 220 220"
+             style="position:absolute;inset:0;width:100%;height:100%">
           <defs>
-            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#FF6B35"/>
-              <stop offset="50%" stop-color="#FFD166"/>
-              <stop offset="100%" stop-color="#6C63FF"/>
+            <clipPath id="orbClip">
+              <circle cx="110" cy="110" r="109"/>
+            </clipPath>
+            <linearGradient id="liqGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#FFD166"/>
+              <stop offset="60%" stop-color="#FF8A3D"/>
+              <stop offset="100%" stop-color="#FF6B35"/>
             </linearGradient>
           </defs>
-          <circle class="ring-bg" cx="80" cy="80" r="68" fill="none" stroke-width="8"/>
-          <circle class="ring-fill" id="ringFill" cx="80" cy="80" r="68" fill="none" stroke-width="8"
-            stroke-dasharray="427.26" stroke-dashoffset="427.26"/>
+          <g clip-path="url(#orbClip)">
+            <!-- liqWave: translateY controls fill level (220=empty → 0=full) -->
+            <g id="liqWave" style="transform:translateY(220px);transition:transform 0.8s ease-out;will-change:transform">
+              <!-- waveDrift: continuous horizontal drift -->
+              <g id="waveDrift" style="animation:waveDrift 4.8s linear infinite">
+                <!-- Depth wave (slightly behind, offset phase) -->
+                <path d="M-440,9 C-385,3 -275,15 -220,9 C-165,3 -55,15 0,9 C55,3 165,15 220,9 C275,3 385,15 440,9 L440,220 L-440,220 Z"
+                      fill="rgba(255,107,53,0.42)"/>
+                <!-- Front wave with gradient body -->
+                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0 L440,220 L-440,220 Z"
+                      fill="url(#liqGrad)" opacity="0.93"/>
+                <!-- Surface bright line + glow -->
+                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
+                      fill="none" stroke="rgba(255,228,140,0.70)" stroke-width="3"
+                      style="filter:blur(1.5px)"/>
+                <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
+                      fill="none" stroke="rgba(255,255,200,0.35)" stroke-width="1.2"/>
+              </g>
+            </g>
+          </g>
         </svg>
-        <span class="font-mono font-bold text-3xl text-white relative z-10" id="pctNum" style="text-shadow:0 2px 12px rgba(0,0,0,.5)">0%</span>
-        <span class="text-xs font-medium text-white/60 relative z-10" id="orbSub">light your day</span>
+        <!-- Text sits above liquid via z-index -->
+        <span class="font-mono font-bold text-3xl text-white relative z-10" id="pctNum"
+              style="text-shadow:0 2px 16px rgba(0,0,0,.9),0 0 24px rgba(0,0,0,.7)">0%</span>
+        <span class="text-xs font-medium text-white/70 relative z-10" id="orbSub">light your day</span>
       </div>
     </div>
 
@@ -572,7 +605,7 @@ function toggleHabit(id) {
   if (!h) return;
   h.done = !h.done;
   buzz(h.done ? [12,8,18] : 8);
-  if (h.done) { S.totalCompleted++; rippleEffect(event); }
+  if (h.done) { S.totalCompleted++; rippleEffect(event); sloshWave(); }
   creditIfComplete();
   save(); render();
 }
@@ -620,7 +653,36 @@ function startNewDay() { rollover(true); showToast('🌅 New day started'); }
 // ═══════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════
-const CIRC = 2*Math.PI*68; // 427.26
+// ── Liquid fill ─────────────────────────────────────────────────────────────
+let _liqPct    = 0;
+let _sloshTmr  = null;
+
+function setLiquidLevel(pct) {
+  _liqPct = pct;
+  const wave = document.getElementById('liqWave');
+  if (wave) {
+    wave.style.transform = `translateY(${220 * (1 - pct / 100)}px)`;
+  }
+  animatePct(pct);
+  document.getElementById('orbBody').classList.toggle('liquid-full', pct === 100);
+}
+
+function sloshWave() {
+  const wave = document.getElementById('liqWave');
+  if (!wave) return;
+  const base = 220 * (1 - _liqPct / 100);
+  clearTimeout(_sloshTmr);
+  wave.style.transition = 'transform 0.11s ease-out';
+  wave.style.transform  = `translateY(${base - 10}px)`;
+  _sloshTmr = setTimeout(() => {
+    wave.style.transition = 'transform 0.50s cubic-bezier(.22,1,.36,1)';
+    wave.style.transform  = `translateY(${base + 5}px)`;
+    _sloshTmr = setTimeout(() => {
+      wave.style.transition = 'transform 0.80s ease-out';
+      wave.style.transform  = `translateY(${base}px)`;
+    }, 260);
+  }, 110);
+}
 
 let _pctTimer = null;
 function animatePct(target) {
@@ -643,9 +705,8 @@ function render() {
   const done = S.habits.filter(h=>h.done).length;
   const pct = total ? done/total : 0;
 
-  // Orb ring
-  document.getElementById('ringFill').style.strokeDashoffset = CIRC - CIRC*pct;
-  animatePct(Math.round(pct*100));
+  // Liquid fill
+  setLiquidLevel(Math.round(pct * 100));
   document.getElementById('orbSub').textContent =
     total===0 ? 'add your first habit' :
     done===total && total>0 ? 'all clear today 🎉' :

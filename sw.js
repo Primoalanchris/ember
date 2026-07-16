@@ -1,4 +1,4 @@
-const CACHE = 'ember-cache-v1';
+const CACHE = 'ember-cache-v3';
 const PRECACHE = ['./', './index.html'];
 
 const CDN_HOSTS = ['cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
