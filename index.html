@@ -40,8 +40,7 @@ tailwind.config = {
     background: #080A12;
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -20%, rgba(108,99,255,.18) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,107,53,.14) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 30% at 10% 90%, rgba(82,227,160,.08) 0%, transparent 50%);
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,107,53,.14) 0%, transparent 55%);
     background-attachment: fixed;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -68,7 +67,7 @@ tailwind.config = {
     position: absolute; inset: -24px;
     background: conic-gradient(from 0deg, rgba(255,107,53,.0), rgba(255,154,92,.35), rgba(255,209,102,.20), rgba(108,99,255,.25), rgba(255,107,53,.0));
     border-radius: 50%;
-    animation: spin 8s linear infinite;
+    animation: spin 12s linear infinite;
     filter: blur(18px);
   }
   .orb-halo-2 {
@@ -109,8 +108,8 @@ tailwind.config = {
   }
   @keyframes float {
     0% { transform: translateY(100vh) scale(0); opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: .6; }
+    10% { opacity: .5; }
+    90% { opacity: .3; }
     100% { transform: translateY(-10vh) scale(1); opacity: 0; }
   }
 
@@ -167,8 +166,23 @@ tailwind.config = {
   .tab-btn.active { color: #FF6B35; }
   .tab-btn.active .tab-dot { background: rgba(255,107,53,.20); }
   .tab-dot { width: 4px; height: 4px; border-radius: 50%; background: transparent; transition: background .18s; }
-  .tab-icon { font-size: 22px; line-height: 1; }
+  .tab-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
   .tab-label { font-size: 10px; font-weight: 600; letter-spacing: .04em; font-family: 'Outfit', sans-serif; }
+
+  /* ── Page centering ── */
+  .page.active { max-width: 480px; margin: 0 auto; }
+
+  /* ── Habit row entrance ── */
+  @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .row-enter { animation: rowIn .28s ease both; }
+
+  /* ── Button glow shadows ── */
+  .btn-glow-ember { box-shadow: 0 8px 24px rgba(255,107,53,.25); }
+  .btn-glow-aurora { box-shadow: 0 8px 24px rgba(108,99,255,.25); }
+
+  /* ── Skeleton shimmer ── */
+  @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+  .skeleton { background: linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%); background-size: 200% 100%; animation: shimmer 1.6s infinite; border-radius: 6px; }
 
   /* ── Coach card ── */
   .coach-typing::after { content: '▋'; animation: blink .7s step-end infinite; }
@@ -240,12 +254,12 @@ tailwind.config = {
 <!-- Notification banner -->
 <div id="notifBanner" class="notif-banner" role="alert" aria-live="polite">
   <div class="glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl">
-    <div class="text-2xl" id="notifIcon">🔥</div>
+    <div class="w-8 h-8 flex items-center justify-center shrink-0" id="notifIcon" style="color:#FF6B35"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg></div>
     <div class="flex-1 min-w-0">
       <p class="font-semibold text-sm text-bone leading-tight" id="notifTitle">Ember</p>
       <p class="text-xs text-dusk mt-0.5 leading-snug" id="notifBody">You're on fire today.</p>
     </div>
-    <button onclick="dismissNotif()" class="text-dusk text-xl leading-none p-1">✕</button>
+    <button onclick="dismissNotif()" class="text-dusk p-1 flex items-center justify-center" aria-label="Dismiss"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
 </div>
 
@@ -261,7 +275,7 @@ tailwind.config = {
   <div class="flex items-center justify-between mb-6">
     <div>
       <p class="text-xs font-mono text-dusk uppercase tracking-widest" id="timeGreeting">Good morning</p>
-      <h1 class="text-2xl font-bold tracking-tight mt-0.5">Ember <span id="headerEmoji">✨</span></h1>
+      <h1 class="text-2xl font-bold tracking-tight mt-0.5">Ember</h1>
     </div>
     <div class="flex items-center gap-2">
       <!-- Streak -->
@@ -271,7 +285,7 @@ tailwind.config = {
         <span class="text-xs text-dusk">streak</span>
       </div>
       <!-- Notif bell -->
-      <button id="notifBtn" onclick="requestNotifications()" class="glass-pill rounded-xl w-10 h-10 grid place-items-center text-lg" aria-label="Enable notifications">🔔</button>
+      <button id="notifBtn" onclick="requestNotifications()" class="glass-pill rounded-xl w-10 h-10 grid place-items-center text-dusk" aria-label="Enable notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
     </div>
   </div>
 
@@ -300,7 +314,7 @@ tailwind.config = {
 
     <!-- Motion idle indicator -->
     <div id="idleAlert" class="hidden mt-4 glass-pill rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm">
-      <span class="idle-pulse text-lg">⏱️</span>
+      <span class="idle-pulse flex items-center justify-center" style="color:#8A8FAA"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
       <span class="text-dusk">You've been still for <span id="idleMin" class="text-bone font-semibold">0</span> min — move!</span>
     </div>
   </div>
@@ -308,14 +322,16 @@ tailwind.config = {
   <!-- Context strip -->
   <div class="flex gap-2 mb-5 overflow-x-auto pb-1 no-scrollbar">
     <div class="glass-pill rounded-2xl px-3 py-2 flex items-center gap-1.5 shrink-0 text-xs">
-      <span id="timeIcon">🌅</span>
+      <span class="text-dusk flex items-center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
       <span class="text-dusk" id="timeLabel">Morning</span>
     </div>
-    <div class="glass-pill rounded-2xl px-3 py-2 flex items-center gap-1.5 shrink-0 text-xs" id="weatherPill">
-      <span>📍</span><span class="text-dusk" id="locationLabel">Detecting...</span>
+    <div class="glass-pill rounded-2xl px-3 py-2 flex items-center gap-1.5 shrink-0 text-xs" id="weatherPill" style="display:none">
+      <span class="text-dusk flex items-center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+      <span class="text-dusk" id="locationLabel"></span>
     </div>
     <div class="glass-pill rounded-2xl px-3 py-2 flex items-center gap-1.5 shrink-0 text-xs" id="dayPhase">
-      <span>📅</span><span class="text-dusk" id="dayLabel">—</span>
+      <span class="text-dusk flex items-center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      <span class="text-dusk" id="dayLabel"></span>
     </div>
   </div>
 
@@ -324,7 +340,7 @@ tailwind.config = {
     <h2 class="font-semibold text-sm text-dusk uppercase tracking-widest">Today's habits</h2>
     <div class="flex gap-2">
       <!-- Voice -->
-      <button id="voiceBtn" onclick="startVoice()" class="glass-pill rounded-xl w-9 h-9 grid place-items-center text-base" aria-label="Voice check-in">🎙️</button>
+      <button id="voiceBtn" onclick="startVoice()" class="glass-pill rounded-xl w-9 h-9 grid place-items-center text-dusk" aria-label="Voice check-in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
       <!-- Edit -->
       <button id="editBtn" onclick="toggleEdit()" class="glass-pill rounded-xl px-3 h-9 text-xs font-semibold text-dusk">Edit</button>
     </div>
@@ -339,12 +355,13 @@ tailwind.config = {
       class="flex-1 min-w-0 rounded-2xl px-4 py-3.5 text-[15px] bg-panel border border-white/08 placeholder:text-dusk/50 focus:outline-none focus:border-ember/50 transition-colors text-bone"
       style="border-color:rgba(255,255,255,0.08)">
     <button onclick="addHabit()" class="ripple-host shrink-0 rounded-2xl px-5 py-3.5 font-bold text-[15px] text-void transition-all active:scale-95"
-      style="background:linear-gradient(135deg,#FF6B35,#FFD166)">Add</button>
+      style="background:linear-gradient(135deg,#FF6B35,#FFD166);box-shadow:0 8px 24px rgba(255,107,53,.25)">Add</button>
   </div>
 
   <!-- New day -->
-  <button onclick="startNewDay()" class="mt-4 w-full glass-pill rounded-2xl py-3.5 text-sm font-semibold text-dusk active:text-bone transition-colors">
-    ↺ Start new day
+  <button onclick="startNewDay()" class="mt-4 w-full glass-pill rounded-2xl py-3.5 text-sm font-semibold text-dusk active:text-bone transition-colors flex items-center justify-center gap-2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+    Start new day
   </button>
 </div>
 
@@ -352,7 +369,7 @@ tailwind.config = {
 <div id="pageCoach" class="page px-4" style="padding-top: calc(env(safe-area-inset-top) + 20px)">
   <div class="mb-6">
     <p class="text-xs font-mono text-dusk uppercase tracking-widest">Powered by context</p>
-    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Your Coach 🧠</h2>
+    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Your Coach</h2>
   </div>
 
   <!-- API key optional unlock -->
@@ -373,7 +390,7 @@ tailwind.config = {
   <!-- Coach response -->
   <div class="glass-panel rounded-2xl p-5 mb-4 min-h-[160px]">
     <div class="flex items-center gap-2 mb-4">
-      <div class="w-8 h-8 rounded-full grid place-items-center text-base" style="background:linear-gradient(135deg,#6C63FF,#A8B4FF)">🧠</div>
+      <div class="w-8 h-8 rounded-full grid place-items-center" style="background:linear-gradient(135deg,#6C63FF,#A8B4FF);color:white"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
       <div>
         <p class="font-semibold text-sm">Ember Coach</p>
         <p class="text-xs text-dusk" id="coachTime">—</p>
@@ -383,7 +400,7 @@ tailwind.config = {
   </div>
 
   <button onclick="getCoachInsight()" class="w-full rounded-2xl py-3.5 font-bold text-sm text-void active:scale-95 transition-all mb-4"
-    style="background:linear-gradient(135deg,#6C63FF,#A8B4FF)">
+    style="background:linear-gradient(135deg,#6C63FF,#A8B4FF);box-shadow:0 8px 24px rgba(108,99,255,.25)">
     Get fresh insight ✦
   </button>
 
@@ -396,7 +413,7 @@ tailwind.config = {
 <div id="pageLibrary" class="page px-4" style="padding-top: calc(env(safe-area-inset-top) + 20px)">
   <div class="mb-5">
     <p class="text-xs font-mono text-dusk uppercase tracking-widest">Science-backed</p>
-    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Habit Library 📚</h2>
+    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Habit Library</h2>
   </div>
 
   <!-- Category filter -->
@@ -415,7 +432,7 @@ tailwind.config = {
 <div id="pageStats" class="page px-4" style="padding-top: calc(env(safe-area-inset-top) + 20px)">
   <div class="mb-6">
     <p class="text-xs font-mono text-dusk uppercase tracking-widest">Your journey</p>
-    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Stats 📊</h2>
+    <h2 class="text-2xl font-bold tracking-tight mt-0.5">Stats</h2>
   </div>
 
   <!-- Big numbers -->
@@ -428,17 +445,17 @@ tailwind.config = {
     <div class="glass-panel rounded-2xl p-4">
       <p class="text-3xl font-bold" id="statBest">0</p>
       <p class="text-xs text-dusk mt-1">Best streak</p>
-      <p class="text-xs text-gold mt-0.5">⭐ personal best</p>
+      <p class="text-xs text-gold mt-0.5">personal best</p>
     </div>
     <div class="glass-panel rounded-2xl p-4">
       <p class="text-3xl font-bold" id="statTotal">0</p>
       <p class="text-xs text-dusk mt-1">Total completed</p>
-      <p class="text-xs text-sage mt-0.5">✅ all time</p>
+      <p class="text-xs text-sage mt-0.5">all time</p>
     </div>
     <div class="glass-panel rounded-2xl p-4">
       <p class="text-3xl font-bold" id="statHabits">0</p>
       <p class="text-xs text-dusk mt-1">Active habits</p>
-      <p class="text-xs text-mist mt-0.5">💡 tracked</p>
+      <p class="text-xs text-mist mt-0.5">tracked</p>
     </div>
   </div>
 
@@ -459,22 +476,22 @@ tailwind.config = {
 <nav class="tab-bar">
   <div class="flex items-center justify-around">
     <button class="tab-btn active" onclick="showPage('Home')" id="tabHome">
-      <span class="tab-icon">🏠</span>
+      <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
       <span class="tab-label">Home</span>
       <span class="tab-dot"></span>
     </button>
     <button class="tab-btn" onclick="showPage('Coach')" id="tabCoach">
-      <span class="tab-icon">🧠</span>
+      <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
       <span class="tab-label">Coach</span>
       <span class="tab-dot"></span>
     </button>
     <button class="tab-btn" onclick="showPage('Library')" id="tabLibrary">
-      <span class="tab-icon">📚</span>
+      <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
       <span class="tab-label">Library</span>
       <span class="tab-dot"></span>
     </button>
     <button class="tab-btn" onclick="showPage('Stats')" id="tabStats">
-      <span class="tab-icon">📊</span>
+      <span class="tab-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></span>
       <span class="tab-label">Stats</span>
       <span class="tab-dot"></span>
     </button>
@@ -604,6 +621,22 @@ function startNewDay() { rollover(true); showToast('🌅 New day started'); }
 // ═══════════════════════════════════════════
 const CIRC = 2*Math.PI*68; // 427.26
 
+let _pctTimer = null;
+function animatePct(target) {
+  const el = document.getElementById('pctNum');
+  const current = parseInt(el.textContent) || 0;
+  if (current === target) return;
+  clearInterval(_pctTimer);
+  const delta = target - current;
+  const steps = Math.max(Math.abs(delta), 1);
+  let i = 0;
+  _pctTimer = setInterval(() => {
+    i++;
+    el.textContent = Math.round(current + delta * i / steps) + '%';
+    if (i >= steps) { clearInterval(_pctTimer); el.textContent = target + '%'; }
+  }, Math.max(Math.round(380/steps), 16));
+}
+
 function render() {
   const total = S.habits.length;
   const done = S.habits.filter(h=>h.done).length;
@@ -611,7 +644,7 @@ function render() {
 
   // Orb ring
   document.getElementById('ringFill').style.strokeDashoffset = CIRC - CIRC*pct;
-  document.getElementById('pctNum').textContent = Math.round(pct*100)+'%';
+  animatePct(Math.round(pct*100));
   document.getElementById('orbSub').textContent =
     total===0 ? 'add your first habit' :
     done===total && total>0 ? 'all clear today 🎉' :
@@ -626,9 +659,9 @@ function render() {
   const list = document.getElementById('habitList');
   list.innerHTML='';
   if (S.habits.length===0) {
-    list.innerHTML=`<div class="glass-panel rounded-2xl p-6 text-center text-sm text-dusk">No habits yet.<br>Add one below or browse the library.</div>`;
+    list.innerHTML=`<div class="glass-panel rounded-2xl p-8 flex flex-col items-center gap-3 text-center"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:rgba(138,143,170,0.35)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p class="text-sm text-dusk">No habits yet — add one below</p></div>`;
   } else {
-    S.habits.forEach(h => list.appendChild(makeHabitRow(h)));
+    S.habits.forEach((h,i) => list.appendChild(makeHabitRow(h,i)));
   }
 
   // Time context
@@ -638,9 +671,10 @@ function render() {
   renderStats();
 }
 
-function makeHabitRow(h) {
+function makeHabitRow(h, idx=0) {
   const div = document.createElement('div');
-  div.className = `habit-row ripple-host flex items-center gap-3.5 px-4 py-4 cursor-pointer ${h.done?'done':''}`;
+  div.className = `habit-row ripple-host row-enter flex items-center gap-3.5 px-4 py-4 cursor-pointer ${h.done?'done':''}`;
+  div.style.animationDelay = (idx*40)+'ms';
   div.setAttribute('role','button');
   div.setAttribute('aria-pressed', h.done);
   div.setAttribute('tabindex','0');
@@ -656,7 +690,7 @@ function makeHabitRow(h) {
     </div>
     <span class="text-lg">${h.emoji||'✨'}</span>
     <span class="habit-label flex-1 text-[15px] font-medium leading-snug">${escHtml(h.label)}</span>
-    ${editing ? `<button class="del-btn text-dusk/60 text-xl px-1 active:text-ember transition-colors" onclick="removeHabit('${h.id}')" aria-label="Delete ${h.label}">✕</button>` : ''}
+    ${editing ? `<button class="del-btn px-1 flex items-center justify-center transition-colors" style="color:rgba(138,143,170,0.55)" onclick="removeHabit('${h.id}')" aria-label="Delete ${h.label}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
   `;
   return div;
 }
@@ -664,10 +698,8 @@ function makeHabitRow(h) {
 function updateTimeContext() {
   const h = new Date().getHours();
   const greetings = h<5?['🌙','Night','Good night']:h<12?['🌅','Morning','Good morning']:h<17?['☀️','Afternoon','Good afternoon']:h<21?['🌆','Evening','Good evening']:['🌙','Night','Good night'];
-  document.getElementById('timeIcon').textContent = greetings[0];
   document.getElementById('timeLabel').textContent = greetings[1];
   document.getElementById('timeGreeting').textContent = greetings[2];
-  document.getElementById('headerEmoji').textContent = greetings[0];
   document.getElementById('dayLabel').textContent = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
 }
 
@@ -713,7 +745,7 @@ function renderStats() {
       <div class="flex items-center gap-3">
         <span class="text-base">${h.emoji||'✨'}</span>
         <span class="flex-1 text-sm text-bone/80 truncate">${escHtml(h.label)}</span>
-        <span class="text-xs font-mono ${h.done?'text-sage':'text-dusk'}">${h.done?'✅ done':'⭕ pending'}</span>
+        <span class="text-xs font-mono ${h.done?'text-sage':'text-dusk'}">${h.done?'✓ done':'· pending'}</span>
       </div>`;
   });
 }
@@ -909,7 +941,7 @@ async function requestNotifications() {
   save();
   if(perm==='granted') {
     showToast('🔔 Notifications enabled');
-    document.getElementById('notifBtn').textContent='🔔';
+    document.getElementById('notifBtn').style.color='#FF6B35';
     scheduleNotifications();
   } else {
     showToast('Notifications blocked — enable in phone settings');
@@ -988,7 +1020,7 @@ function startVoice() {
   recognition.lang='en-US'; recognition.interimResults=false; recognition._active=true;
 
   const btn=document.getElementById('voiceBtn');
-  btn.classList.add('voice-active'); btn.textContent='🔴';
+  btn.classList.add('voice-active');
   showToast('🎙️ Listening… say a habit name');
 
   recognition.onresult = e => {
@@ -1004,7 +1036,7 @@ function startVoice() {
     creditIfComplete(); save(); render();
   };
   recognition.onerror = () => showToast('Could not hear clearly — try again');
-  recognition.onend = () => { btn.classList.remove('voice-active'); btn.textContent='🎙️'; recognition._active=false; };
+  recognition.onend = () => { btn.classList.remove('voice-active'); recognition._active=false; };
   recognition.start();
 }
 
@@ -1014,13 +1046,10 @@ function startVoice() {
 function getLocation() {
   if(!('geolocation' in navigator)) return;
   navigator.geolocation.getCurrentPosition(pos => {
-    const lat=pos.coords.latitude, lon=pos.coords.longitude;
-    // Rough time-zone guess from longitude
-    const tzOff = Math.round(lon/15);
+    const tzOff = Math.round(pos.coords.longitude/15);
     document.getElementById('locationLabel').textContent=`~UTC${tzOff>=0?'+':''}${tzOff}`;
-  }, ()=>{
-    document.getElementById('locationLabel').textContent='Location off';
-  }, {timeout:5000});
+    document.getElementById('weatherPill').style.display='flex';
+  }, ()=>{}, {timeout:5000});
 }
 
 // ═══════════════════════════════════════════
@@ -1061,9 +1090,15 @@ function showToast(msg) {
   toastTimer=setTimeout(()=>el.classList.remove('show'), 2600);
 }
 
+const _BANNER_SVG = {
+  '🔥': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg>`,
+  '🔔': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+};
 let notifTimer;
 function showBanner(icon,title,body) {
-  document.getElementById('notifIcon').textContent=icon;
+  const iconEl = document.getElementById('notifIcon');
+  if (_BANNER_SVG[icon]) { iconEl.innerHTML=_BANNER_SVG[icon]; iconEl.style.color=''; }
+  else { iconEl.textContent=icon; }
   document.getElementById('notifTitle').textContent=title;
   document.getElementById('notifBody').textContent=body;
   const b=document.getElementById('notifBanner'); b.classList.add('show');
@@ -1077,8 +1112,8 @@ function dismissNotif() { document.getElementById('notifBanner').classList.remov
 // ═══════════════════════════════════════════
 function spawnParticles() {
   const container=document.getElementById('particles');
-  const colors=['#FF6B35','#FFD166','#6C63FF','#52E3A0','#A8B4FF'];
-  for(let i=0;i<18;i++) {
+  const colors=['#FF6B35','#FFD166','#6C63FF','#A8B4FF'];
+  for(let i=0;i<8;i++) {
     const p=document.createElement('div');
     p.className='particle';
     const sz=Math.random()*4+2;
