@@ -255,6 +255,25 @@ tailwind.config = {
   .voice-active { animation: voicePulse 1s ease-in-out infinite; }
   @keyframes voicePulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,.4)} 50%{box-shadow:0 0 0 14px rgba(255,107,53,.0)} }
 
+  /* ── Personal-best chip ── */
+  #pbChip { border: 1px solid rgba(255,209,102,.30); }
+
+  /* ── Confetti canvas ── */
+  #confettiCanvas { position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:500; }
+
+  /* ── Milestone banner pulse ── */
+  @keyframes milestonePop { 0%{transform:translateX(-50%) translateY(0) scale(1)} 40%{transform:translateX(-50%) translateY(0) scale(1.04)} 100%{transform:translateX(-50%) translateY(0) scale(1)} }
+  .notif-banner.milestone { animation: milestonePop .45s ease-out; }
+
+  /* ── Heatmap ── */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .heatmap-grid { display: flex; gap: 3px; align-items: flex-start; }
+  .heatmap-col  { display: flex; flex-direction: column; gap: 3px; }
+  .heatmap-cell { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .heatmap-day-labels { display: flex; flex-direction: column; gap: 3px; margin-right: 4px; }
+  .heatmap-day-lbl { width: 10px; height: 10px; font-size: 7px; color: #3D4160;
+                     display: flex; align-items: center; justify-content: center; }
+
   /* ── Drag-to-reorder ── */
   .drag-handle { touch-action: none; cursor: grab; color: #3D4160; flex-shrink:0; display:flex; align-items:center; padding:0 4px; }
   .drag-handle:active { cursor: grabbing; color: #8A8FAA; }
@@ -304,11 +323,12 @@ tailwind.config = {
       <h1 class="text-2xl font-bold tracking-tight mt-0.5">Ember</h1>
     </div>
     <div class="flex items-center gap-2">
-      <!-- Streak -->
+      <!-- Streak + freeze indicator -->
       <div class="glass-pill rounded-2xl px-3 py-2 flex items-center gap-1.5">
         <span class="streak-fire text-base">🔥</span>
         <span class="font-mono font-semibold text-sm" id="streakNum">0</span>
         <span class="text-xs text-dusk">streak</span>
+        <span id="freezePill" class="hidden text-xs font-mono" style="color:#A8B4FF">❄️<span id="freezeCount"></span></span>
       </div>
       <!-- Notif bell -->
       <button id="notifBtn" onclick="requestNotifications()" class="glass-pill rounded-xl w-10 h-10 grid place-items-center text-dusk" aria-label="Enable notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
@@ -363,6 +383,12 @@ tailwind.config = {
               style="text-shadow:0 2px 16px rgba(0,0,0,.9),0 0 24px rgba(0,0,0,.7)">0%</span>
         <span class="text-xs font-medium text-white/70 relative z-10" id="orbSub">light your day</span>
       </div>
+    </div>
+
+    <!-- Personal-best chip -->
+    <div id="pbChip" class="hidden mt-3 glass-pill rounded-full px-3 py-1.5 flex items-center gap-1.5 text-xs font-semibold" style="color:#FFD166">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      New record
     </div>
 
     <!-- Motion idle indicator -->
@@ -523,6 +549,20 @@ tailwind.config = {
     <div class="flex justify-between gap-1.5" id="weekHistory"></div>
   </div>
 
+  <!-- Contribution heatmap -->
+  <div class="glass-panel rounded-2xl p-4 mb-4">
+    <p class="text-xs font-semibold text-dusk uppercase tracking-widest mb-3">12-week history</p>
+    <div class="heatmap-wrap"><div id="heatmapGrid" class="heatmap-grid"></div></div>
+    <div class="flex items-center gap-2 mt-3">
+      <span class="text-xs text-dusk">Less</span>
+      <div style="width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,0.05)"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:#6C63FF;opacity:.5"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:#FF6B35;opacity:.6"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:#FF6B35"></div>
+      <span class="text-xs text-dusk">More</span>
+    </div>
+  </div>
+
   <!-- Time breakdown -->
   <div class="glass-panel rounded-2xl p-4">
     <p class="text-xs font-semibold text-dusk uppercase tracking-widest mb-3">Today's breakdown</p>
@@ -581,6 +621,7 @@ function freshState() {
     habits: DEFAULTS.map(h => ({id:uid(), label:h.label, emoji:h.emoji, cat:h.cat, done:false, preset:true, addedAt:Date.now(), streakDays:0, lastDoneDay:null, accent:null})),
     streak: 0, best: 0, lastCredited: null, totalCompleted: 0,
     history: {}, // {dayKey: {done:N, total:N}}
+    freezesAvailable: 0,
     apiKey: '',
     notifGranted: false,
     lastSuggestTime: 0,
@@ -594,6 +635,8 @@ function loadState() {
     const raw = JSON.parse(localStorage.getItem(KEY));
     if (!raw || !Array.isArray(raw.habits)) return freshState();
     const state = Object.assign(freshState(), raw);
+    // Lazy-migrate top-level fields added in Phase 2
+    if (state.freezesAvailable == null) state.freezesAvailable = 0;
     // Lazy-migrate habit fields added in Phase 1
     state.habits.forEach(h => {
       if (h.streakDays == null) h.streakDays = 0;
@@ -620,6 +663,14 @@ function rollover(manual=false) {
   // Archive yesterday
   const doneCount = S.habits.filter(h=>h.done).length;
   if (doneCount > 0) S.history[S.day] = {done:doneCount, total:S.habits.length};
+  // Streak freeze: if the user missed yesterday and has a freeze, consume it
+  const allDonePrevDay = S.lastCredited === S.day;
+  if (!allDonePrevDay && S.streak > 0 && S.freezesAvailable > 0) {
+    S.freezesAvailable--;
+    S.lastCredited = S.day; // treat prev day as credited to preserve streak
+    showToast(`❄️ Streak freeze used — ${S.freezesAvailable} left`);
+  }
+
   // Update per-habit streaks before clearing done flags
   const prevDay = S.day;
   S.habits.forEach(h => {
@@ -663,6 +714,14 @@ function creditIfComplete() {
   S.best = Math.max(S.best, S.streak);
   buzz([20,50,20,60,30]);
   showBanner('🔥','Day complete!',`Streak: ${S.streak} ${S.streak===1?'day':'days'} — keep the fire alive.`);
+  // Earn a freeze at every 7-day milestone (cap 3)
+  if (S.streak % 7 === 0) {
+    S.freezesAvailable = Math.min(3, S.freezesAvailable + 1);
+    setTimeout(() => showToast(`❄️ Freeze earned! ${S.freezesAvailable} stored`), 2800);
+  }
+  // Milestone celebration
+  const MILESTONES = [7, 30, 100, 365];
+  if (MILESTONES.includes(S.streak)) showMilestone(S.streak);
 }
 
 function addHabit() {
@@ -823,9 +882,19 @@ function render() {
     done===0 ? 'light your day' :
     `${done} of ${total} lit`;
 
-  // Streak
+  // Streak + freeze indicator
   const s = liveStreak();
   document.getElementById('streakNum').textContent = s;
+  const fp = document.getElementById('freezePill');
+  if (fp) {
+    const f = S.freezesAvailable || 0;
+    fp.classList.toggle('hidden', f === 0);
+    if (f > 0) document.getElementById('freezeCount').textContent = f;
+  }
+
+  // Personal-best chip
+  const pbChip = document.getElementById('pbChip');
+  if (pbChip) pbChip.classList.toggle('hidden', !isPersonalBest(done, total));
 
   // Habit list
   const list = document.getElementById('habitList');
@@ -963,6 +1032,132 @@ function renderStats() {
         <span class="text-xs font-mono ${h.done?'text-sage':'text-dusk'}">${h.done?'✓ done':'· pending'}</span>
       </div>`;
   });
+}
+
+// ═══════════════════════════════════════════
+//  PERSONAL BEST / MILESTONES / CONFETTI
+// ═══════════════════════════════════════════
+function isPersonalBest(done, total) {
+  if (!done || !total) return false;
+  const todayPct = done / total;
+  const histPcts = Object.values(S.history)
+    .filter(r => r.total > 0)
+    .map(r => r.done / r.total);
+  if (!histPcts.length) return done === total; // first full day
+  return todayPct >= Math.max(...histPcts) && todayPct > 0;
+}
+
+function showConfetti() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confettiCanvas';
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const COLORS = ['#FF6B35','#FFD166','#52E3A0','#6C63FF','#A8B4FF','#FF9A5C','#C8F0FF'];
+  const pieces = Array.from({length:90}, () => ({
+    x: Math.random() * canvas.width,
+    y: -12 - Math.random() * 60,
+    vx: (Math.random() - .5) * 5,
+    vy: Math.random() * 3 + 2,
+    size: Math.random() * 9 + 4,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    rot: Math.random() * Math.PI * 2,
+    rotV: (Math.random() - .5) * .18,
+    shape: Math.random() > .5 ? 'rect' : 'circle',
+  }));
+  let frame = 0;
+  (function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += .07; p.rot += p.rotV;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, 1 - p.y / canvas.height * 1.2);
+      if (p.shape === 'rect') ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      else { ctx.beginPath(); ctx.arc(0, 0, p.size/2, 0, Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    });
+    if (++frame < 130) requestAnimationFrame(tick);
+    else canvas.remove();
+  })();
+}
+
+const MILESTONE_MSGS = {
+  7:   ['🔥', '7-day streak!',  "One week straight. The habit loop is forming."],
+  30:  ['💫', '30-day streak!', "Thirty days. This is who you are now."],
+  100: ['⚡', '100-day streak!', "One hundred days. You've built something real."],
+  365: ['👑', '365-day streak!', "A full year. Legendary."],
+};
+
+function showMilestone(n) {
+  const [icon, title, body] = MILESTONE_MSGS[n] || ['🎉', `${n}-day streak!`, `${n} days strong.`];
+  showConfetti();
+  setTimeout(() => {
+    const b = document.getElementById('notifBanner');
+    showBanner(icon, title, body);
+    b.classList.add('milestone');
+    setTimeout(() => b.classList.remove('milestone'), 500);
+  }, 300);
+  buzz([30,20,30,20,50,100]);
+}
+
+// ═══════════════════════════════════════════
+//  HEATMAP
+// ═══════════════════════════════════════════
+function renderHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if (!grid) return;
+  const today = dayKey();
+  const todayDt = new Date();
+
+  // Align start to Sunday of the week 12 weeks ago
+  const startDt = new Date(todayDt);
+  startDt.setDate(todayDt.getDate() - 11 * 7 - todayDt.getDay());
+
+  const DAY_LBLS = ['S','M','T','W','T','F','S'];
+  let html = '';
+
+  // Day-of-week label column
+  html += '<div class="heatmap-day-labels">';
+  DAY_LBLS.forEach(l => html += `<div class="heatmap-day-lbl">${l}</div>`);
+  html += '</div>';
+
+  for (let w = 0; w < 12; w++) {
+    html += '<div class="heatmap-col">';
+    for (let d = 0; d < 7; d++) {
+      const cellDt = new Date(startDt);
+      cellDt.setDate(startDt.getDate() + w * 7 + d);
+      const k = dayKey(cellDt);
+      const isFuture = k > today;
+      const isToday  = k === today;
+
+      let bg = 'rgba(255,255,255,0.05)', opacity = '';
+      if (!isFuture) {
+        let pct = null;
+        if (isToday) {
+          const tot = S.habits.length;
+          pct = tot > 0 ? S.habits.filter(h=>h.done).length / tot : null;
+        } else {
+          const rec = S.history[k];
+          pct = (rec && rec.total > 0) ? rec.done / rec.total : null;
+        }
+        if (pct === null)   bg = 'rgba(255,255,255,0.05)';
+        else if (pct === 0) bg = 'rgba(255,255,255,0.07)';
+        else if (pct < .5)  { bg = '#6C63FF'; opacity = `opacity:${(.3 + pct * .5).toFixed(2)};`; }
+        else if (pct < 1)   { bg = '#FF6B35'; opacity = `opacity:${(.45 + pct * .4).toFixed(2)};`; }
+        else                  bg = '#FF6B35';
+      }
+      const outline = isToday ? 'outline:1.5px solid rgba(255,255,255,.5);outline-offset:1px;' : '';
+      html += `<div class="heatmap-cell" style="background:${bg};${opacity}${outline}" title="${k}"></div>`;
+    }
+    html += '</div>';
+  }
+
+  grid.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════
@@ -1341,7 +1536,7 @@ function showPage(name) {
   });
   if(name==='Library') renderLibrary();
   if(name==='Coach') { renderWeekRecap(); getCoachInsight(); if(S.apiKey) document.getElementById('apiStatus').textContent='Connected ✓'; }
-  if(name==='Stats') renderStats();
+  if(name==='Stats') { renderStats(); renderHeatmap(); }
   buzz(6);
 }
 
