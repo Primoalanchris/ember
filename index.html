@@ -255,6 +255,18 @@ tailwind.config = {
   .voice-active { animation: voicePulse 1s ease-in-out infinite; }
   @keyframes voicePulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,.4)} 50%{box-shadow:0 0 0 14px rgba(255,107,53,.0)} }
 
+  /* ── Drag-to-reorder ── */
+  .drag-handle { touch-action: none; cursor: grab; color: #3D4160; flex-shrink:0; display:flex; align-items:center; padding:0 4px; }
+  .drag-handle:active { cursor: grabbing; color: #8A8FAA; }
+  .habit-row.drag-source { opacity: .25 !important; }
+  .habit-row.drag-over-above { box-shadow: 0 -2px 0 #FF6B35; }
+  .habit-row.drag-over-below { box-shadow: 0 2px 0 #FF6B35; }
+
+  /* ── Weekly recap ── */
+  .recap-stat { flex:1; }
+  .recap-stat p:first-child { font-size:1.5rem; font-weight:700; font-family:'Outfit',sans-serif; line-height:1; }
+  .recap-stat p:last-child  { font-size:.7rem; color:#8A8FAA; margin-top:2px; }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   }
@@ -440,6 +452,11 @@ tailwind.config = {
     <p id="coachMsg" class="text-sm leading-relaxed text-bone/90"></p>
   </div>
 
+  <!-- Weekly recap -->
+  <div class="glass-panel rounded-2xl p-4 mb-4" id="weekRecapCard">
+    <p class="text-xs text-dusk">Check back after your first full day.</p>
+  </div>
+
   <button onclick="getCoachInsight()" class="w-full rounded-2xl py-3.5 font-bold text-sm text-void active:scale-95 transition-all mb-4"
     style="background:linear-gradient(135deg,#6C63FF,#A8B4FF);box-shadow:0 8px 24px rgba(108,99,255,.25)">
     Get fresh insight ✦
@@ -547,6 +564,9 @@ const KEY = 'ember.v2';
 const uid = () => Math.random().toString(36).slice(2,9);
 const dayKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); };
+const isNextDay = (a, b) => { const [y,m,d]=a.split('-').map(Number),dt=new Date(y,m-1,d); dt.setDate(dt.getDate()+1); return dayKey(dt)===b; };
+
+const ACCENT_COLORS = ['#FF6B35','#FFD166','#52E3A0','#6C63FF','#A8B4FF','#C8F0FF'];
 
 const DEFAULTS = [
   {label:'Brush teeth', emoji:'🦷', cat:'body'},
@@ -558,7 +578,7 @@ const DEFAULTS = [
 function freshState() {
   return {
     day: dayKey(),
-    habits: DEFAULTS.map(h => ({id:uid(), label:h.label, emoji:h.emoji, cat:h.cat, done:false, preset:true, addedAt:Date.now()})),
+    habits: DEFAULTS.map(h => ({id:uid(), label:h.label, emoji:h.emoji, cat:h.cat, done:false, preset:true, addedAt:Date.now(), streakDays:0, lastDoneDay:null, accent:null})),
     streak: 0, best: 0, lastCredited: null, totalCompleted: 0,
     history: {}, // {dayKey: {done:N, total:N}}
     apiKey: '',
@@ -573,7 +593,14 @@ function loadState() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY));
     if (!raw || !Array.isArray(raw.habits)) return freshState();
-    return Object.assign(freshState(), raw);
+    const state = Object.assign(freshState(), raw);
+    // Lazy-migrate habit fields added in Phase 1
+    state.habits.forEach(h => {
+      if (h.streakDays == null) h.streakDays = 0;
+      if (!('lastDoneDay' in h))  h.lastDoneDay = null;
+      if (!('accent' in h))       h.accent = null;
+    });
+    return state;
   } catch { return freshState(); }
 }
 
@@ -593,8 +620,18 @@ function rollover(manual=false) {
   // Archive yesterday
   const doneCount = S.habits.filter(h=>h.done).length;
   if (doneCount > 0) S.history[S.day] = {done:doneCount, total:S.habits.length};
+  // Update per-habit streaks before clearing done flags
+  const prevDay = S.day;
+  S.habits.forEach(h => {
+    if (h.done) {
+      h.streakDays = (h.lastDoneDay && isNextDay(h.lastDoneDay, prevDay)) ? (h.streakDays||0)+1 : 1;
+      h.lastDoneDay = prevDay;
+    } else {
+      h.streakDays = 0;
+    }
+    h.done = false;
+  });
   S.day = today;
-  S.habits.forEach(h => h.done=false);
   save(); render();
   if (!manual) showToast('🌅 New day — board cleared');
   return true;
@@ -642,6 +679,11 @@ function removeHabit(id) {
   buzz(18); save(); render();
 }
 
+function setHabitAccent(id, color) {
+  const h = S.habits.find(h=>h.id===id);
+  if (h) { h.accent = color; save(); render(); }
+}
+
 function addFromLib(label, emoji, cat) {
   if (S.habits.find(h=>h.label===label)) { showToast('Already in your list'); return; }
   S.habits.push({id:uid(), label, emoji, cat, done:false, preset:false, addedAt:Date.now()});
@@ -660,6 +702,68 @@ function startNewDay() { rollover(true); showToast('🌅 New day started'); }
 // ═══════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════
+// ── Drag-to-reorder ─────────────────────────────────────────────────────────
+let _drag = {idx:null,el:null,clone:null,offsetY:0,startY:0,targetIdx:null,started:false};
+
+function initDrag(handle, rowEl, idx) {
+  handle.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    Object.assign(_drag, {idx, el:rowEl, offsetY:e.clientY-rowEl.getBoundingClientRect().top,
+      startY:e.clientY, targetIdx:idx, started:false, clone:null});
+    handle.setPointerCapture(e.pointerId);
+  });
+
+  handle.addEventListener('pointermove', e => {
+    if (_drag.idx === null) return;
+    e.preventDefault();
+    if (!_drag.started) {
+      if (Math.abs(e.clientY - _drag.startY) < 6) return;
+      _drag.started = true;
+      const r = _drag.el.getBoundingClientRect();
+      _drag.clone = _drag.el.cloneNode(true);
+      Object.assign(_drag.clone.style, {
+        position:'fixed', left:r.left+'px', top:r.top+'px', width:r.width+'px',
+        opacity:'0.93', pointerEvents:'none', zIndex:'999',
+        transform:'scale(1.025)', borderRadius:'20px', transition:'none',
+        boxShadow:'0 24px 48px rgba(0,0,0,.55)'
+      });
+      document.body.appendChild(_drag.clone);
+      _drag.el.classList.add('drag-source');
+    }
+    if (_drag.clone) _drag.clone.style.top = (e.clientY - _drag.offsetY) + 'px';
+
+    // Find target index
+    const rows = [...document.querySelectorAll('#habitList .habit-row')];
+    let newTarget = _drag.idx;
+    rows.forEach((r, i) => {
+      r.classList.remove('drag-over-above','drag-over-below');
+      if (i === _drag.idx) return;
+      const rb = r.getBoundingClientRect();
+      if (e.clientY >= rb.top && e.clientY < rb.bottom) newTarget = i;
+    });
+    _drag.targetIdx = newTarget;
+    if (newTarget !== _drag.idx && rows[newTarget]) {
+      rows[newTarget].classList.add(_drag.idx < newTarget ? 'drag-over-below' : 'drag-over-above');
+    }
+  }, {passive:false});
+
+  const endDrag = () => {
+    if (_drag.clone) { _drag.clone.remove(); _drag.clone = null; }
+    if (_drag.el)    { _drag.el.classList.remove('drag-source'); }
+    document.querySelectorAll('#habitList .habit-row').forEach(r =>
+      r.classList.remove('drag-over-above','drag-over-below'));
+    if (_drag.started && _drag.targetIdx !== null && _drag.targetIdx !== _drag.idx) {
+      const [moved] = S.habits.splice(_drag.idx, 1);
+      S.habits.splice(_drag.targetIdx, 0, moved);
+      save();
+    }
+    _drag = {idx:null,el:null,clone:null,offsetY:0,startY:0,targetIdx:null,started:false};
+    render();
+  };
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+}
+
 // ── Liquid fill ─────────────────────────────────────────────────────────────
 let _liqPct    = 0;
 let _sloshTmr  = null;
@@ -741,25 +845,67 @@ function render() {
 
 function makeHabitRow(h, idx=0) {
   const div = document.createElement('div');
-  div.className = `habit-row ripple-host row-enter flex items-center gap-3.5 px-4 py-4 cursor-pointer ${h.done?'done':''}`;
+  div.className = `habit-row ripple-host row-enter flex items-center gap-3 px-4 py-4 cursor-pointer ${h.done?'done':''}`;
   div.style.animationDelay = (idx*40)+'ms';
   div.setAttribute('role','button');
   div.setAttribute('aria-pressed', h.done);
   div.setAttribute('tabindex','0');
   div.setAttribute('aria-label', h.label);
-  div.onclick = (e) => { if(e.target.closest('.del-btn')) return; toggleHabit(h.id, e); };
+  div.onclick = (e) => { if(e.target.closest('.del-btn,.drag-handle,.accent-btn')) return; toggleHabit(h.id, e); };
   div.onkeydown = (e) => { if(e.key===' '||e.key==='Enter') toggleHabit(h.id, e); };
 
+  // Accent-aware check circle style
+  const accentCircle = (h.done && h.accent)
+    ? `background:linear-gradient(135deg,${h.accent},${h.accent}cc);border-color:transparent;box-shadow:0 0 14px ${h.accent}66;`
+    : '';
+
+  // Swatch picker shown in edit mode
+  const swatchPicker = editing ? `
+    <div class="flex gap-1.5 mt-2 flex-wrap">
+      ${ACCENT_COLORS.map(c=>`<button class="accent-btn" onclick="event.stopPropagation();setHabitAccent('${h.id}','${c}')"
+        style="width:16px;height:16px;border-radius:50%;background:${c};flex-shrink:0;
+               border:2px solid ${h.accent===c?'rgba(255,255,255,.9)':'transparent'};
+               transition:transform .12s" aria-label="${c}"></button>`).join('')}
+      ${h.accent?`<button class="accent-btn" onclick="event.stopPropagation();setHabitAccent('${h.id}',null)"
+        style="width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.08);flex-shrink:0;
+               border:1.5px solid rgba(255,255,255,.2);font-size:9px;color:#8A8FAA;
+               display:flex;align-items:center;justify-content:center;line-height:1"
+        aria-label="Clear accent">✕</button>`:''}
+    </div>` : '';
+
   div.innerHTML = `
-    <div class="check-circle">
+    ${editing ? `<span class="drag-handle" aria-hidden="true">
+      <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor">
+        <circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>
+        <circle cx="4" cy="9" r="1.5"/><circle cx="10" cy="9" r="1.5"/>
+        <circle cx="4" cy="15" r="1.5"/><circle cx="10" cy="15" r="1.5"/>
+      </svg>
+    </span>` : ''}
+    <div class="check-circle" style="${accentCircle}">
       <svg class="check-icon w-4 h-4" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/>
       </svg>
     </div>
-    <span class="text-lg">${h.emoji||'✨'}</span>
-    <span class="habit-label flex-1 text-[15px] font-medium leading-snug">${escHtml(h.label)}</span>
-    ${editing ? `<button class="del-btn px-1 flex items-center justify-center transition-colors" style="color:rgba(138,143,170,0.55)" onclick="removeHabit('${h.id}')" aria-label="Delete ${h.label}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
+    <span class="text-lg" aria-hidden="true">${h.emoji||'✨'}</span>
+    <div class="flex-1 min-w-0">
+      <span class="habit-label text-[15px] font-medium leading-snug">${escHtml(h.label)}</span>
+      ${swatchPicker}
+    </div>
+    ${(!editing && h.streakDays >= 1) ? `<span class="text-xs font-mono shrink-0" style="color:rgba(138,143,170,.65)">${h.streakDays}🔥</span>` : ''}
+    ${editing ? `<button class="del-btn px-1 flex items-center justify-center shrink-0 transition-colors"
+      style="color:rgba(138,143,170,.55)"
+      onclick="event.stopPropagation();removeHabit('${h.id}')"
+      aria-label="Delete ${escHtml(h.label)}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg></button>` : ''}
   `;
+
+  // Wire up drag handle after innerHTML
+  if (editing) {
+    const handle = div.querySelector('.drag-handle');
+    if (handle) initDrag(handle, div, idx);
+  }
   return div;
 }
 
@@ -813,9 +959,74 @@ function renderStats() {
       <div class="flex items-center gap-3">
         <span class="text-base">${h.emoji||'✨'}</span>
         <span class="flex-1 text-sm text-bone/80 truncate">${escHtml(h.label)}</span>
+        ${h.streakDays>=1?`<span class="text-xs font-mono text-dusk/60">${h.streakDays}🔥</span>`:''}
         <span class="text-xs font-mono ${h.done?'text-sage':'text-dusk'}">${h.done?'✓ done':'· pending'}</span>
       </div>`;
   });
+}
+
+// ═══════════════════════════════════════════
+//  WEEKLY RECAP
+// ═══════════════════════════════════════════
+function renderWeekRecap() {
+  const el = document.getElementById('weekRecapCard');
+  if (!el) return;
+
+  const today = dayKey();
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Gather pct for last 14 days; first 7 = this week, next 7 = previous
+  function getDayPct(daysAgo) {
+    const d = new Date(); d.setDate(d.getDate() - daysAgo);
+    const k = dayKey(d);
+    if (k === today) {
+      const tot = S.habits.length;
+      return tot ? S.habits.filter(h=>h.done).length / tot : null;
+    }
+    const rec = S.history[k];
+    return (rec && rec.total > 0) ? rec.done / rec.total : null;
+  }
+
+  const thisWeek = [], prevWeek = [];
+  for (let i=6; i>=0; i--) thisWeek.push({pct:getDayPct(i), d:(() =>{const dt=new Date();dt.setDate(dt.getDate()-i);return dt;})()});
+  for (let i=13; i>=7; i--) prevWeek.push(getDayPct(i));
+
+  const validThis = thisWeek.map(x=>x.pct).filter(p=>p!=null);
+  const validPrev = prevWeek.filter(p=>p!=null);
+
+  if (validThis.length === 0) {
+    el.innerHTML = `<p class="text-xs text-dusk text-center py-2">Complete your first full day to see your weekly recap.</p>`;
+    return;
+  }
+
+  const avgThis = validThis.reduce((a,b)=>a+b,0) / validThis.length;
+  const avgPrev = validPrev.length>=3 ? validPrev.reduce((a,b)=>a+b,0)/validPrev.length : null;
+
+  // Best day this week
+  let bestDay = null, bestPct = -1;
+  thisWeek.forEach(({pct, d}) => { if (pct!=null && pct>bestPct) { bestPct=pct; bestDay=DAY_NAMES[d.getDay()]; } });
+
+  // Trend vs prior week
+  let trendHtml = '';
+  if (avgPrev !== null) {
+    const delta = Math.round((avgThis - avgPrev) * 100);
+    if (delta > 5)       trendHtml = `<span style="color:#52E3A0">↑ ${delta}% vs prior week</span>`;
+    else if (delta < -5) trendHtml = `<span style="color:#FF6B35">↓ ${Math.abs(delta)}% vs prior week</span>`;
+    else                 trendHtml = `<span style="color:#8A8FAA">≈ on par with prior week</span>`;
+  }
+
+  el.innerHTML = `
+    <div class="flex items-center gap-2 mb-3">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p class="text-xs font-semibold text-dusk uppercase tracking-widest">This week</p>
+    </div>
+    <div class="flex gap-5 mb-3">
+      <div class="recap-stat"><p>${Math.round(avgThis*100)}%</p><p>avg completion</p></div>
+      ${bestDay ? `<div class="recap-stat"><p>${bestDay}</p><p>best day</p></div>` : ''}
+      <div class="recap-stat"><p>${validThis.length}</p><p>days logged</p></div>
+    </div>
+    ${trendHtml ? `<p class="text-xs">${trendHtml}</p>` : ''}
+  `;
 }
 
 // ═══════════════════════════════════════════
@@ -1129,7 +1340,7 @@ function showPage(name) {
     document.getElementById('tab'+p).classList.toggle('active', p===name);
   });
   if(name==='Library') renderLibrary();
-  if(name==='Coach') { getCoachInsight(); if(S.apiKey) document.getElementById('apiStatus').textContent='Connected ✓'; }
+  if(name==='Coach') { renderWeekRecap(); getCoachInsight(); if(S.apiKey) document.getElementById('apiStatus').textContent='Connected ✓'; }
   if(name==='Stats') renderStats();
   buzz(6);
 }
