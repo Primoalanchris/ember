@@ -1,4 +1,4 @@
-const CACHE = 'ember-cache-v7';
+const CACHE = 'ember-cache-v8';
 const PRECACHE = ['./', './index.html'];
 
 const CDN_HOSTS = ['cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -28,6 +28,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Never intercept non-GET (e.g. Claude API POSTs) — Cache API can't store them
+  if (request.method !== 'GET') return;
 
   // CDN / fonts → stale-while-revalidate
   if (CDN_HOSTS.includes(url.hostname)) {

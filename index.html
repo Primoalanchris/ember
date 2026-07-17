@@ -281,6 +281,32 @@ tailwind.config = {
   .habit-row.drag-over-above { box-shadow: 0 -2px 0 #FF6B35; }
   .habit-row.drag-over-below { box-shadow: 0 2px 0 #FF6B35; }
 
+  /* ── Dynamic tint (warms with completion %) ── */
+  #tintLayer {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,107,53,.20) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,209,102,.16) 0%, transparent 55%);
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  /* ── Onboarding ── */
+  #onboard {
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(8,10,18,0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; padding-top: calc(env(safe-area-inset-top) + 24px);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+    opacity: 1; transition: opacity .35s ease;
+  }
+  #onboard.hide { opacity: 0; pointer-events: none; }
+  .onboard-slide { animation: rowIn .32s ease both; }
+  .onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.18); transition: all .25s; }
+  .onboard-dot.on { background: #FF6B35; width: 18px; border-radius: 3px; }
+
   /* ── Weekly recap ── */
   .recap-stat { flex:1; }
   .recap-stat p:first-child { font-size:1.5rem; font-weight:700; font-family:'Outfit',sans-serif; line-height:1; }
@@ -295,6 +321,9 @@ tailwind.config = {
 
 <!-- Particles -->
 <div id="particles" aria-hidden="true"></div>
+
+<!-- Dynamic warm tint — opacity driven by completion % -->
+<div id="tintLayer" aria-hidden="true"></div>
 
 <!-- Notification banner -->
 <div id="notifBanner" class="notif-banner" role="alert" aria-live="polite">
@@ -330,6 +359,8 @@ tailwind.config = {
         <span class="text-xs text-dusk">streak</span>
         <span id="freezePill" class="hidden text-xs font-mono" style="color:#A8B4FF">❄️<span id="freezeCount"></span></span>
       </div>
+      <!-- Sound toggle: off → sfx → sfx + ambient crackle -->
+      <button id="soundBtn" onclick="cycleSound()" class="glass-pill rounded-xl w-10 h-10 grid place-items-center text-dusk" aria-label="Toggle sound"></button>
       <!-- Notif bell -->
       <button id="notifBtn" onclick="requestNotifications()" class="glass-pill rounded-xl w-10 h-10 grid place-items-center text-dusk" aria-label="Enable notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
     </div>
@@ -625,6 +656,8 @@ function freshState() {
     apiKey: '',
     notifGranted: false,
     lastSuggestTime: 0,
+    sound: 'sfx',      // 'off' | 'sfx' | 'amb'
+    onboarded: false,
   };
 }
 
@@ -637,6 +670,9 @@ function loadState() {
     const state = Object.assign(freshState(), raw);
     // Lazy-migrate top-level fields added in Phase 2
     if (state.freezesAvailable == null) state.freezesAvailable = 0;
+    // Lazy-migrate Phase 3 fields — existing users never see onboarding
+    if (raw.sound == null) state.sound = 'sfx';
+    if (raw.onboarded == null) state.onboarded = true;
     // Lazy-migrate habit fields added in Phase 1
     state.habits.forEach(h => {
       if (h.streakDays == null) h.streakDays = 0;
@@ -700,7 +736,8 @@ function toggleHabit(id, e) {
   if (!h) return;
   h.done = !h.done;
   buzz(h.done ? [12,8,18] : 8);
-  if (h.done) { S.totalCompleted++; rippleEffect(e); sloshWave(); }
+  if (h.done) { S.totalCompleted++; rippleEffect(e); sloshWave(); sfxTick(); }
+  else sfxUntick();
   creditIfComplete();
   save(); render();
 }
@@ -713,6 +750,7 @@ function creditIfComplete() {
   S.lastCredited = dayKey();
   S.best = Math.max(S.best, S.streak);
   buzz([20,50,20,60,30]);
+  sfxComplete();
   showBanner('🔥','Day complete!',`Streak: ${S.streak} ${S.streak===1?'day':'days'} — keep the fire alive.`);
   // Earn a freeze at every 7-day milestone (cap 3)
   if (S.streak % 7 === 0) {
@@ -876,6 +914,9 @@ function render() {
 
   // Liquid fill
   setLiquidLevel(Math.round(pct * 100));
+
+  // Dynamic tint — page warms as the day fills in
+  applyTint(pct);
   document.getElementById('orbSub').textContent =
     total===0 ? 'add your first habit' :
     done===total && total>0 ? 'all clear today 🎉' :
@@ -976,6 +1017,24 @@ function makeHabitRow(h, idx=0) {
     if (handle) initDrag(handle, div, idx);
   }
   return div;
+}
+
+// ── Dynamic tint ────────────────────────────────────────────────────────────
+// Warm overlay fades in with completion %; theme-color and orb halos follow.
+function applyTint(pct) {
+  const layer = document.getElementById('tintLayer');
+  if (layer) layer.style.opacity = (pct * 0.9).toFixed(2);
+
+  // Blend meta theme-color from void #080A12 toward warm ember-black #180C08
+  const mix = (a,b) => Math.round(a + (b-a) * pct);
+  const hex = n => n.toString(16).padStart(2,'0');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = `#${hex(mix(0x08,0x18))}${hex(mix(0x0A,0x0C))}${hex(mix(0x12,0x08))}`;
+
+  // Orb halos brighten as the day fills
+  document.querySelectorAll('.orb-halo, .orb-halo-2').forEach(el => {
+    el.style.opacity = (0.55 + 0.45 * pct).toFixed(2);
+  });
 }
 
 function updateTimeContext() {
@@ -1103,6 +1162,7 @@ function showMilestone(n) {
     setTimeout(() => b.classList.remove('milestone'), 500);
   }, 300);
   buzz([30,20,30,20,50,100]);
+  sfxMilestone();
 }
 
 // ═══════════════════════════════════════════
@@ -1331,7 +1391,7 @@ const COACH_MSGS = {
   ],
 };
 
-function getCoachInsight() {
+function localCoachMsg() {
   const h = new Date().getHours();
   const done = S.habits.filter(h=>h.done).length;
   const total = S.habits.length;
@@ -1342,23 +1402,93 @@ function getCoachInsight() {
   else if (done===0 && total>0) pool = COACH_MSGS.none;
   else pool = h<12 ? COACH_MSGS.morning : h<17 ? COACH_MSGS.afternoon : h<21 ? COACH_MSGS.evening : COACH_MSGS.night;
 
-  // pick different msg each time
-  const idx = Math.floor(Math.random() * pool.length);
-  const msg = pool[idx];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
+let _typeTimer = null;
+function typeCoachMsg(msg) {
   const el = document.getElementById('coachMsg');
   el.textContent = '';
-  document.getElementById('coachTime').textContent = new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-
-  // Simulate streaming
-  let i=0;
-  const interval = setInterval(() => {
-    if(i>=msg.length) { clearInterval(interval); el.classList.remove('coach-typing'); return; }
+  clearInterval(_typeTimer);
+  let i = 0;
+  _typeTimer = setInterval(() => {
+    if (i >= msg.length) { clearInterval(_typeTimer); el.classList.remove('coach-typing'); return; }
     el.textContent += msg[i++];
     el.classList.add('coach-typing');
   }, 18);
+}
 
+// ── Real Claude API coaching ────────────────────────────────────────────────
+const COACH_MODEL = 'claude-opus-4-8';
+let _coachBusy = false;
+
+function coachContext() {
+  const now = new Date();
+  const done = S.habits.filter(h=>h.done).map(h=>h.label);
+  const pending = S.habits.filter(h=>!h.done).map(h=>h.label);
+  // Last 7 days completion summary from history
+  const days = [];
+  for (let i=6; i>=1; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const rec = S.history[dayKey(d)];
+    days.push(rec && rec.total ? Math.round(rec.done/rec.total*100)+'%' : '—');
+  }
+  return `It's ${now.toLocaleDateString(undefined,{weekday:'long'})} ${now.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}. ` +
+    `Current streak: ${liveStreak()} days (best: ${S.best}). ` +
+    `Done today: ${done.length ? done.join(', ') : 'nothing yet'}. ` +
+    `Still to do: ${pending.length ? pending.join(', ') : 'nothing — all complete!'}. ` +
+    `Last 6 days completion: ${days.join(', ')}. ` +
+    `Give me one coaching insight for right now.`;
+}
+
+async function fetchClaudeCoach() {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': S.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: COACH_MODEL,
+      max_tokens: 300,
+      system: 'You are Ember Coach, the in-app coach of a habit tracker called Ember. ' +
+        'Reply with ONE insight: 2-3 sentences, specific to the user\'s current habits, time of day, and streak. ' +
+        'Warm but direct, grounded in behavioral science when relevant. ' +
+        'No preamble, no bullet points, no markdown, at most one emoji.',
+      messages: [{ role: 'user', content: coachContext() }],
+    }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.stop_reason === 'refusal') throw new Error('refusal');
+  const txt = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+  if (!txt) throw new Error('empty response');
+  return txt;
+}
+
+async function getCoachInsight() {
+  document.getElementById('coachTime').textContent =
+    new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   renderSuggestions();
+
+  if (S.apiKey && !_coachBusy) {
+    _coachBusy = true;
+    const el = document.getElementById('coachMsg');
+    el.textContent = 'Thinking';
+    el.classList.add('coach-typing');
+    try {
+      const msg = await fetchClaudeCoach();
+      typeCoachMsg(msg);
+      return;
+    } catch (err) {
+      showToast('⚡ Claude unreachable — local insight');
+    } finally {
+      _coachBusy = false;
+    }
+  }
+  typeCoachMsg(localCoachMsg());
 }
 
 function renderSuggestions() {
@@ -1545,6 +1675,125 @@ function showPage(name) {
 // ═══════════════════════════════════════════
 function buzz(p) { if(navigator.vibrate) try{navigator.vibrate(p);}catch{} }
 
+// ═══════════════════════════════════════════
+//  SOUND (WebAudio — all synthesized, no files)
+// ═══════════════════════════════════════════
+let _actx = null, _noiseBuf = null;
+
+function audioCtx() {
+  if (S.sound === 'off') return null;
+  if (!_actx) {
+    try { _actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (_actx.state === 'suspended') _actx.resume();
+  return _actx;
+}
+
+function playNote(freq, {delay=0, dur=0.18, type='sine', gain=0.10} = {}) {
+  const ctx = audioCtx(); if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+// Check-off blip — pitch rises with completion % so a full board sings
+function sfxTick() {
+  const total = S.habits.length;
+  const done = S.habits.filter(h=>h.done).length;
+  const p = total ? done/total : 0;
+  playNote(440 + p*320, {type:'triangle', dur:0.14, gain:0.09});
+  playNote(660 + p*480, {delay:0.05, type:'sine', dur:0.16, gain:0.06});
+}
+function sfxUntick() { playNote(330, {type:'triangle', dur:0.12, gain:0.06}); }
+// All-habits-done chord (warm major arpeggio)
+function sfxComplete() {
+  [523.25, 659.25, 783.99].forEach((f,i)=>playNote(f, {delay:i*0.09, type:'triangle', dur:0.5, gain:0.09}));
+  playNote(1046.5, {delay:0.28, type:'sine', dur:0.7, gain:0.05});
+}
+// Milestone fanfare
+function sfxMilestone() {
+  [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f,i)=>playNote(f, {delay:i*0.11, type:'triangle', dur:0.45, gain:0.10}));
+}
+
+// ── Ambient ember crackle ──
+let _ambOn = false, _ambTmr = null;
+
+function noiseBuffer(ctx) {
+  if (_noiseBuf) return _noiseBuf;
+  const len = Math.floor(ctx.sampleRate * 0.12);
+  _noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = _noiseBuf.getChannelData(0);
+  for (let i=0; i<len; i++) d[i] = Math.random()*2 - 1;
+  return _noiseBuf;
+}
+
+function crackle() {
+  if (!_ambOn || document.hidden) return;
+  const ctx = audioCtx();
+  if (ctx) {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(ctx);
+    src.playbackRate.value = 0.6 + Math.random()*1.6;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 700 + Math.random()*2600;
+    bp.Q.value = 1.5;
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    const peak = 0.015 + Math.random()*0.035;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05 + Math.random()*0.06);
+    src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+    src.start(t);
+  }
+  _ambTmr = setTimeout(crackle, 90 + Math.random()*380);
+}
+
+function startAmbient() {
+  if (_ambOn) return;
+  _ambOn = true;
+  crackle();
+}
+function stopAmbient() {
+  _ambOn = false;
+  clearTimeout(_ambTmr);
+}
+
+const _SOUND_ICONS = {
+  off: `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
+  sfx: `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
+  amb: `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`,
+};
+
+function renderSoundBtn() {
+  const btn = document.getElementById('soundBtn');
+  if (!btn) return;
+  btn.innerHTML = _SOUND_ICONS[S.sound] || _SOUND_ICONS.off;
+  btn.style.color = S.sound === 'off' ? '' : '#FF9A5C';
+  btn.setAttribute('aria-label',
+    S.sound === 'off' ? 'Sound off' : S.sound === 'sfx' ? 'Sound effects on' : 'Sound + ambient crackle on');
+}
+
+function cycleSound() {
+  S.sound = S.sound === 'off' ? 'sfx' : S.sound === 'sfx' ? 'amb' : 'off';
+  save(); renderSoundBtn();
+  if (S.sound === 'amb') { startAmbient(); showToast('🔥 Ambient crackle on'); }
+  else { stopAmbient(); showToast(S.sound === 'sfx' ? '🔊 Sounds on' : '🔇 Sound off'); }
+  if (S.sound !== 'off') sfxTick();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { stopAmbient(); }
+  else if (S.sound === 'amb') { startAmbient(); }
+});
+
 function rippleEffect(e) {
   if (!e || !e.currentTarget) return;
   const el = e.currentTarget;
@@ -1606,6 +1855,69 @@ function spawnParticles() {
 }
 
 // ═══════════════════════════════════════════
+//  ONBOARDING (first run only)
+// ═══════════════════════════════════════════
+const ONBOARD_SLIDES = [
+  {
+    icon: `<div class="orb-wrap" style="width:120px;height:120px;margin:0 auto"><div class="orb-halo"></div><div class="orb-body" style="animation-duration:3s"></div></div>`,
+    title: 'Welcome to Ember',
+    body: 'This orb is your day. It fills with liquid fire as you complete habits — get it to 100% and keep the flame alive.',
+  },
+  {
+    icon: `<div style="font-size:56px;line-height:1">🔥</div>`,
+    title: 'Build your streak',
+    body: 'Complete every habit to grow your streak. Every 7 days you earn a ❄️ freeze — it saves your streak automatically if you miss a day.',
+  },
+  {
+    icon: `<div style="font-size:56px;line-height:1">✦</div>`,
+    title: 'You have backup',
+    body: 'The Library has 30 science-backed habits ready to add. Your Coach gives timely insight — and connects to Claude AI if you add an API key.',
+  },
+];
+let _onboardIdx = 0;
+
+function showOnboarding() {
+  const wrap = document.createElement('div');
+  wrap.id = 'onboard';
+  document.body.appendChild(wrap);
+  renderOnboardSlide();
+}
+
+function renderOnboardSlide() {
+  const wrap = document.getElementById('onboard');
+  if (!wrap) return;
+  const s = ONBOARD_SLIDES[_onboardIdx];
+  const last = _onboardIdx === ONBOARD_SLIDES.length - 1;
+  wrap.innerHTML = `
+    <div class="glass-panel rounded-3xl p-8 w-full max-w-sm text-center onboard-slide" key="${_onboardIdx}">
+      <div class="mb-6 flex justify-center">${s.icon}</div>
+      <h2 class="text-xl font-bold tracking-tight mb-2">${s.title}</h2>
+      <p class="text-sm text-dusk leading-relaxed mb-6">${s.body}</p>
+      <div class="flex justify-center gap-1.5 mb-6">
+        ${ONBOARD_SLIDES.map((_,i)=>`<span class="onboard-dot ${i===_onboardIdx?'on':''}"></span>`).join('')}
+      </div>
+      <button onclick="nextOnboard()" class="w-full rounded-2xl py-3.5 font-bold text-[15px] text-void active:scale-95 transition-all"
+        style="background:linear-gradient(135deg,#FF6B35,#FFD166);box-shadow:0 8px 24px rgba(255,107,53,.25)">
+        ${last ? 'Light it up' : 'Next'}</button>
+      ${last ? '' : `<button onclick="finishOnboarding()" class="mt-3 text-xs text-dusk">Skip</button>`}
+    </div>`;
+}
+
+function nextOnboard() {
+  buzz(8); sfxTick();
+  if (_onboardIdx >= ONBOARD_SLIDES.length - 1) { finishOnboarding(); return; }
+  _onboardIdx++;
+  renderOnboardSlide();
+}
+
+function finishOnboarding() {
+  S.onboarded = true; save();
+  const wrap = document.getElementById('onboard');
+  if (wrap) { wrap.classList.add('hide'); setTimeout(()=>wrap.remove(), 400); }
+  buzz([12,8,18]);
+}
+
+// ═══════════════════════════════════════════
 //  UTILS
 // ═══════════════════════════════════════════
 function escHtml(s) {
@@ -1637,6 +1949,12 @@ function escHtml(s) {
   startMotionDetection();
   getLocation();
   scheduleNotifications();
+  renderSoundBtn();
+  // Ambient resumes after the first tap (browser autoplay policy)
+  if (S.sound === 'amb') startAmbient();
+
+  // First-run onboarding
+  if (!S.onboarded) showOnboarding();
 
   // Update time every minute
   setInterval(updateTimeContext, 60000);
@@ -1653,8 +1971,9 @@ function escHtml(s) {
     document.getElementById('apiStatus').style.color='#52E3A0';
   }
 
-  // Welcome banner on first load
+  // Welcome banner on load (skipped during first-run onboarding)
   setTimeout(()=>{
+    if (!S.onboarded) return;
     const h=new Date().getHours();
     const greeting=h<12?'morning':h<17?'afternoon':'evening';
     showBanner('🔥','Welcome back',`Good ${greeting}. ${S.habits.filter(h=>h.done).length} of ${S.habits.length} habits lit today.`);
