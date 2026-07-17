@@ -291,6 +291,14 @@ tailwind.config = {
     transition: opacity 1.2s ease;
   }
 
+  /* ── Storage-failure banner (persistent) ── */
+  #storageBanner {
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 440px;
+    z-index: 250;
+    padding-top: calc(env(safe-area-inset-top) + 8px);
+  }
+
   /* ── Onboarding ── */
   #onboard {
     position: fixed; inset: 0; z-index: 600;
@@ -632,6 +640,7 @@ tailwind.config = {
 //  STATE
 // ═══════════════════════════════════════════
 const KEY = 'ember.v2';
+const SCHEMA_VERSION = 2;
 const uid = () => Math.random().toString(36).slice(2,9);
 const dayKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); };
@@ -658,6 +667,8 @@ function freshState() {
     lastSuggestTime: 0,
     sound: 'sfx',      // 'off' | 'sfx' | 'amb'
     onboarded: false,
+    coachCallTimestamps: [],
+    schemaVersion: SCHEMA_VERSION,
   };
 }
 
@@ -679,11 +690,59 @@ function loadState() {
       if (!('lastDoneDay' in h))  h.lastDoneDay = null;
       if (!('accent' in h))       h.accent = null;
     });
+    if (!Array.isArray(state.coachCallTimestamps)) state.coachCallTimestamps = [];
+    migrateState(state, raw.schemaVersion);
     return state;
-  } catch { return freshState(); }
+  } catch (err) {
+    console.warn('[ember] loadState failed — persisted state unreadable, starting fresh:', err);
+    return freshState();
+  }
 }
 
-function save() { localStorage.setItem(KEY, JSON.stringify(S)); }
+// Explicit schema upgrade path. Bump SCHEMA_VERSION and add a step here
+// whenever the persisted shape changes, instead of relying on
+// Object.assign(freshState(), raw) to silently patch gaps.
+function migrateState(state, from) {
+  let v = from || 1;
+  if (v < 2) {
+    // v1 → v2: introduction of explicit versioning. All pre-v2 field gaps
+    // are patched by the lazy migrations in loadState — nothing else to do.
+    v = 2;
+  }
+  state.schemaVersion = SCHEMA_VERSION;
+  return state;
+}
+
+let _storageFailed = false;
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(S));
+    if (_storageFailed) { _storageFailed = false; hideStorageBanner(); }
+  } catch (err) {
+    // QuotaExceededError, disabled storage, private browsing…
+    console.warn('[ember] save failed — data is NOT persisting:', err);
+    if (!_storageFailed) { _storageFailed = true; showStorageBanner(); }
+  }
+}
+
+// Persistent (non-auto-dismissing) storage-failure banner
+function showStorageBanner() {
+  if (document.getElementById('storageBanner')) return;
+  const div = document.createElement('div');
+  div.id = 'storageBanner';
+  div.setAttribute('role', 'alert');
+  div.innerHTML = `
+    <div class="glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl" style="border-color:rgba(255,107,53,.5)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p class="flex-1 text-sm text-bone leading-snug">Your data isn't saving right now — check your browser storage settings.</p>
+      <button onclick="hideStorageBanner()" class="text-dusk p-1 shrink-0" aria-label="Dismiss"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
+  document.body.appendChild(div);
+}
+function hideStorageBanner() {
+  const el = document.getElementById('storageBanner');
+  if (el) el.remove();
+}
 
 function liveStreak() {
   if (!S.lastCredited) return 0;
@@ -1420,7 +1479,29 @@ function typeCoachMsg(msg) {
 
 // ── Real Claude API coaching ────────────────────────────────────────────────
 const COACH_MODEL = 'claude-opus-4-8';
+const COACH_MIN_INTERVAL_MS = 20 * 1000;   // max 1 call per 20s
+const COACH_DAILY_LIMIT = 30;              // max real API calls per rolling 24h
 let _coachBusy = false;
+
+// Client-side spend guard — protects a key with no server-side control.
+// Returns true if a real API call is allowed right now.
+function coachRateCheck() {
+  const now = Date.now();
+  // Prune to the rolling 24h window; store no more than the daily limit
+  S.coachCallTimestamps = (S.coachCallTimestamps || [])
+    .filter(t => now - t < 24 * 60 * 60 * 1000)
+    .slice(-COACH_DAILY_LIMIT);
+  const last = S.coachCallTimestamps[S.coachCallTimestamps.length - 1];
+  if (last && now - last < COACH_MIN_INTERVAL_MS) {
+    showToast('Slow down — one insight at a time');
+    return false;
+  }
+  if (S.coachCallTimestamps.length >= COACH_DAILY_LIMIT) {
+    showToast("Daily AI coach limit reached — here's a local insight");
+    return false;
+  }
+  return true;
+}
 
 function coachContext() {
   const now = new Date();
@@ -1473,8 +1554,10 @@ async function getCoachInsight() {
     new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   renderSuggestions();
 
-  if (S.apiKey && !_coachBusy) {
+  if (S.apiKey && !_coachBusy && coachRateCheck()) {
     _coachBusy = true;
+    S.coachCallTimestamps.push(Date.now());
+    save();
     const el = document.getElementById('coachMsg');
     el.textContent = 'Thinking';
     el.classList.add('coach-typing');
@@ -1483,6 +1566,7 @@ async function getCoachInsight() {
       typeCoachMsg(msg);
       return;
     } catch (err) {
+      console.warn('[ember] coach API call failed:', err);
       showToast('⚡ Claude unreachable — local insight');
     } finally {
       _coachBusy = false;
@@ -1923,6 +2007,23 @@ function finishOnboarding() {
 function escHtml(s) {
   return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+// ═══════════════════════════════════════════
+//  GLOBAL ERROR VISIBILITY
+// ═══════════════════════════════════════════
+// Surface unexpected failures as a toast instead of dying silently.
+// Throttled so an error loop can't spam the UI.
+let _lastErrToast = 0;
+function reportError(err) {
+  try { console.error('[ember] uncaught:', err); } catch {}
+  const now = Date.now();
+  if (now - _lastErrToast > 8000) {
+    _lastErrToast = now;
+    try { showToast('Something went wrong — try refreshing'); } catch {}
+  }
+}
+window.onerror = (msg, src, line, col, err) => { reportError(err || msg); return false; };
+window.addEventListener('unhandledrejection', e => reportError(e.reason));
 
 // ═══════════════════════════════════════════
 //  INIT
