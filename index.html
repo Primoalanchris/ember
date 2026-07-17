@@ -1565,6 +1565,7 @@ const COACH_MSGS = {
   ],
 };
 
+let _lastCoachMsg = '';
 function localCoachMsg() {
   const h = new Date().getHours();
   const done = S.habits.filter(h=>h.done).length;
@@ -1576,7 +1577,11 @@ function localCoachMsg() {
   else if (done===0 && total>0) pool = COACH_MSGS.none;
   else pool = h<12 ? COACH_MSGS.morning : h<17 ? COACH_MSGS.afternoon : h<21 ? COACH_MSGS.evening : COACH_MSGS.night;
 
-  return pool[Math.floor(Math.random() * pool.length)];
+  // Never repeat the same insight twice in a row
+  const candidates = pool.length > 1 ? pool.filter(m => m !== _lastCoachMsg) : pool;
+  const msg = candidates[Math.floor(Math.random() * candidates.length)];
+  _lastCoachMsg = msg;
+  return msg;
 }
 
 let _typeTimer = null;
@@ -1992,6 +1997,20 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { stopAmbient(); }
   else if (S.sound === 'amb') { startAmbient(); }
 });
+
+// Autoplay-policy unlock: iOS/Chrome keep the AudioContext suspended until
+// resume() runs INSIDE a user gesture. Timer-driven sound (ambient crackle)
+// never gets a gesture, so unlock on the first tap anywhere.
+function unlockAudio() {
+  if (S.sound === 'off') return;              // keep listening for a gesture after sound is re-enabled
+  const ctx = audioCtx();                     // creates + resumes inside this gesture
+  if (ctx && ctx.state === 'running') {
+    document.removeEventListener('touchstart', unlockAudio);
+    document.removeEventListener('click', unlockAudio);
+  }
+}
+document.addEventListener('touchstart', unlockAudio, {passive: true});
+document.addEventListener('click', unlockAudio);
 
 function rippleEffect(e) {
   if (!e || !e.currentTarget) return;
