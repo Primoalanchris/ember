@@ -217,6 +217,53 @@ tailwind.config = {
     #liqWobble { transition: none !important; }
   }
 
+  /* ── Rising embers (sparks off the liquid) ── */
+  #orbSparks { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .orb-spark {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,224,150,.95) 0%, rgba(255,107,53,.65) 55%, transparent 100%);
+    box-shadow: 0 0 6px rgba(255,154,92,.6);
+    opacity: 0;
+    animation: sparkRise var(--dur,1.8s) ease-out forwards;
+  }
+  @keyframes sparkRise {
+    0%   { transform: translate(0,0) scale(1); opacity: 0; }
+    12%  { opacity: .95; }
+    100% { transform: translate(var(--sway,0px), -130px) scale(.25); opacity: 0; }
+  }
+
+  /* ── Orb is touchable ── */
+  #orbBody { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+  /* ── Background bokeh depth ── */
+  .bokeh {
+    position: absolute; border-radius: 50%;
+    filter: blur(32px);
+    animation: bokehDrift ease-in-out infinite alternate;
+  }
+  @keyframes bokehDrift {
+    from { transform: translate(0,0) scale(1); }
+    to   { transform: translate(46px,-64px) scale(1.15); }
+  }
+
+  /* ── One-shot shimmer + check pop when a row completes ── */
+  @keyframes rowShine { to { transform: translateX(220%); } }
+  .just-done::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 32%, rgba(255,214,150,.16) 50%, transparent 68%);
+    transform: translateX(-100%);
+    animation: rowShine .65s ease .05s forwards;
+  }
+  @keyframes checkPop { 0% { transform: scale(.5); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  .just-done .check-circle { animation: checkPop .38s cubic-bezier(.34,1.56,.64,1); }
+
+  /* ── Streak pill pop on day-complete ── */
+  @keyframes streakPop { 0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); } }
+  .streak-pop { animation: streakPop .55s cubic-bezier(.34,1.56,.64,1); }
+
+  /* ── Page entrance on tab switch ── */
+  .page.active { animation: rowIn .26s ease; }
+
   /* ── Motion idle indicator ── */
   .idle-pulse { animation: idlePulse 2s ease-in-out infinite; }
   @keyframes idlePulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.08)} }
@@ -379,7 +426,8 @@ tailwind.config = {
     <div class="orb-wrap">
       <div class="orb-halo"></div>
       <div class="orb-halo-2"></div>
-      <div class="orb-body" id="orbBody">
+      <div id="orbSparks" aria-hidden="true"></div>
+      <div class="orb-body" id="orbBody" onclick="orbTap()">
         <!-- Liquid fill SVG — clipped to orb circle -->
         <svg id="liquidSvg" viewBox="0 0 220 220"
              style="position:absolute;inset:0;width:100%;height:100%">
@@ -794,6 +842,7 @@ function toggleHabit(id, e) {
   const h = S.habits.find(h=>h.id===id);
   if (!h) return;
   h.done = !h.done;
+  _justDoneId = h.done ? h.id : null;
   buzz(h.done ? [12,8,18] : 8);
   if (h.done) { S.totalCompleted++; rippleEffect(e); sloshWave(); sfxTick(); }
   else sfxUntick();
@@ -810,6 +859,12 @@ function creditIfComplete() {
   S.best = Math.max(S.best, S.streak);
   buzz([20,50,20,60,30]);
   sfxComplete();
+  // Streak pill pop
+  const pill = document.getElementById('streakNum');
+  if (pill && pill.parentElement) {
+    pill.parentElement.classList.add('streak-pop');
+    setTimeout(() => pill.parentElement.classList.remove('streak-pop'), 600);
+  }
   showBanner('🔥','Day complete!',`Streak: ${S.streak} ${S.streak===1?'day':'days'} — keep the fire alive.`);
   // Earn a freeze at every 7-day milestone (cap 3)
   if (S.streak % 7 === 0) {
@@ -950,6 +1005,50 @@ function sloshWave() {
   }, 110);
 }
 
+// ── Rising embers ───────────────────────────────────────────────────────────
+// Sparks drift up off the liquid surface; frequency scales with completion.
+let _sparkTmr = null;
+
+function reducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function spawnSpark(pct) {
+  const wrap = document.getElementById('orbSparks');
+  if (!wrap || wrap.childElementCount > 14 || reducedMotion()) return;
+  const s = document.createElement('div');
+  s.className = 'orb-spark';
+  const size = 2.5 + Math.random() * 3;
+  const x = 25 + Math.random() * 50;                                 // stay inside the circle
+  const surface = Math.min(85, Math.max(12, (1 - pct) * 100));       // liquid line
+  s.style.cssText = `width:${size}px;height:${size}px;left:${x}%;top:${surface}%;` +
+    `--sway:${(Math.random() * 36 - 18).toFixed(0)}px;--dur:${(1.4 + Math.random() * 1.2).toFixed(2)}s`;
+  s.addEventListener('animationend', () => s.remove());
+  wrap.appendChild(s);
+}
+
+function sparkLoop() {
+  clearTimeout(_sparkTmr);
+  if (document.hidden || reducedMotion()) return;
+  const total = S.habits.length;
+  const done = S.habits.filter(h => h.done).length;
+  const pct = total ? done / total : 0;
+  if (pct > 0) spawnSpark(pct);
+  _sparkTmr = setTimeout(sparkLoop, 1500 - pct * 1050 + Math.random() * 400);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sparkLoop(); });
+
+// Tapping the orb: slosh + ember burst + soft low tone
+function orbTap() {
+  buzz(10);
+  sloshWave();
+  const total = S.habits.length;
+  const done = S.habits.filter(h => h.done).length;
+  const pct = total ? done / total : 0;
+  for (let i = 0; i < 6; i++) setTimeout(() => spawnSpark(Math.max(pct, 0.25)), i * 45);
+  playNote(196 + pct * 220, {type: 'sine', dur: 0.35, gain: 0.05});
+}
+
 let _pctTimer = null;
 function animatePct(target) {
   const el = document.getElementById('pctNum');
@@ -978,9 +1077,12 @@ function render() {
   applyTint(pct);
   document.getElementById('orbSub').textContent =
     total===0 ? 'add your first habit' :
-    done===total && total>0 ? 'all clear today 🎉' :
-    done===0 ? 'light your day' :
+    done===total && total>0 ? dailyPick(['all clear today 🎉','the orb is full 🔥','a perfect day']) :
+    done===0 ? dailyPick(['light your day','strike the first match','one spark starts it']) :
     `${done} of ${total} lit`;
+
+  // Rising embers keep pace with completion
+  sparkLoop();
 
   // Streak + freeze indicator
   const s = liveStreak();
@@ -1012,9 +1114,12 @@ function render() {
   renderStats();
 }
 
+let _justDoneId = null;
+
 function makeHabitRow(h, idx=0) {
   const div = document.createElement('div');
-  div.className = `habit-row ripple-host row-enter flex items-center gap-3 px-4 py-4 cursor-pointer ${h.done?'done':''}`;
+  div.className = `habit-row ripple-host row-enter flex items-center gap-3 px-4 py-4 cursor-pointer ${h.done?'done':''} ${h.id===_justDoneId?'just-done':''}`;
+  if (h.id === _justDoneId) _justDoneId = null;
   div.style.animationDelay = (idx*40)+'ms';
   div.setAttribute('role','button');
   div.setAttribute('aria-pressed', h.done);
@@ -1094,6 +1199,16 @@ function applyTint(pct) {
   document.querySelectorAll('.orb-halo, .orb-halo-2').forEach(el => {
     el.style.opacity = (0.55 + 0.45 * pct).toFixed(2);
   });
+
+  // Breathing quickens as the day fills (calm 4.8s → lively 2.6s)
+  const orb = document.getElementById('orbBody');
+  if (orb) orb.style.animationDuration = (4.8 - 2.2 * pct).toFixed(2) + 's';
+}
+
+// Daily-stable pick — same phrase all day, fresh one tomorrow
+function dailyPick(arr) {
+  const seed = S.day.split('').reduce((a,c) => a + c.charCodeAt(0), 0);
+  return arr[seed % arr.length];
 }
 
 function updateTimeContext() {
@@ -1925,7 +2040,17 @@ function dismissNotif() { document.getElementById('notifBanner').classList.remov
 function spawnParticles() {
   const container=document.getElementById('particles');
   const colors=['#FF6B35','#FFD166','#6C63FF','#A8B4FF'];
-  for(let i=0;i<8;i++) {
+  // Soft bokeh orbs for background depth
+  const bokehCols=['rgba(255,107,53,.07)','rgba(108,99,255,.09)','rgba(255,209,102,.05)'];
+  for(let i=0;i<3;i++) {
+    const b=document.createElement('div');
+    b.className='bokeh';
+    const sz=90+Math.random()*70;
+    b.style.cssText=`width:${sz}px;height:${sz}px;left:${8+Math.random()*70}%;top:${8+Math.random()*70}%;`+
+      `background:${bokehCols[i]};animation-duration:${35+Math.random()*20}s;animation-delay:-${Math.random()*30}s`;
+    container.appendChild(b);
+  }
+  for(let i=0;i<12;i++) {
     const p=document.createElement('div');
     p.className='particle';
     const sz=Math.random()*4+2;
