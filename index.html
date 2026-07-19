@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ember">
 <link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -2220,7 +2221,7 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
   setTimeout(()=>{
     if (!S.onboarded) return;
     const h=new Date().getHours();
-    const greeting=h<12?'morning':h<17?'afternoon':'evening';
+    const greeting=h<5?'night':h<12?'morning':h<17?'afternoon':h<21?'evening':'night';
     showBanner('🔥','Welcome back',`Good ${greeting}. ${S.habits.filter(h=>h.done).length} of ${S.habits.length} habits lit today.`);
   }, 800);
 
