@@ -713,6 +713,31 @@ tailwind.config = {
 // ═══════════════════════════════════════════
 const KEY = 'ember.v2';
 const SCHEMA_VERSION = 3;
+
+// ═══════════════════════════════════════════
+//  STORAGE PROVIDER
+// ═══════════════════════════════════════════
+// All persistence flows through `storage` — nothing else in the app touches
+// localStorage. The contract is deliberately narrow so the engine can be
+// swapped for a backend-driven provider (Supabase/Postgres) later:
+//   load()         → previously persisted plain state object, or null
+//   persist(state) → write state; MUST throw when the medium is unavailable
+//                    (save() turns that into the storage-failure banner)
+// The in-memory `S` object remains the single source of truth; a provider
+// only syncs it. A future async provider keeps this shape — load() awaited
+// once at boot, persist() as fire-and-forget write-behind with its own
+// queue/retry — so no call site beyond init() needs to change.
+class LocalStorageProvider {
+  constructor(key) { this.key = key; }
+  load() {
+    const raw = localStorage.getItem(this.key);
+    return raw ? JSON.parse(raw) : null;
+  }
+  persist(state) {
+    localStorage.setItem(this.key, JSON.stringify(state));
+  }
+}
+const storage = new LocalStorageProvider(KEY);
 const uid = () => Math.random().toString(36).slice(2,9);
 const dayKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); };
@@ -802,7 +827,7 @@ let S = loadState();
 
 function loadState() {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY));
+    const raw = storage.load();
     if (!raw || !Array.isArray(raw.habits)) return freshState();
     const state = Object.assign(freshState(), raw);
     // Lazy-migrate top-level fields added in Phase 2
@@ -847,7 +872,7 @@ function migrateState(state, from) {
 let _storageFailed = false;
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify(S));
+    storage.persist(S);
     if (_storageFailed) { _storageFailed = false; hideStorageBanner(); }
   } catch (err) {
     // QuotaExceededError, disabled storage, private browsing…
