@@ -22,8 +22,12 @@ tailwind.config = {
       colors: {
         void: '#080A12', deep: '#0D1020', panel: '#131729',
         glass: 'rgba(255,255,255,0.06)', rim: 'rgba(255,255,255,0.10)',
-        ember: '#FF6B35', flame: '#FF9A5C', gold: '#FFD166',
-        aurora: '#6C63FF', mist: '#A8B4FF', ice: '#C8F0FF',
+        ember: 'rgb(var(--c-primary-rgb) / <alpha-value>)',
+        flame: 'rgb(var(--c-primary-soft-rgb) / <alpha-value>)',
+        gold: 'rgb(var(--c-highlight-rgb) / <alpha-value>)',
+        aurora: 'rgb(var(--c-accent-rgb) / <alpha-value>)',
+        mist: 'rgb(var(--c-accent-soft-rgb) / <alpha-value>)',
+        ice: '#C8F0FF',
         sage: '#52E3A0', dusk: '#8A8FAA', bone: '#E8EAF2',
       },
       fontFamily: {
@@ -38,11 +42,21 @@ tailwind.config = {
   *, *::before, *::after { box-sizing: border-box; }
   html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
 
+  /* ── Theme variables (defaults = Ember; applyTheme() overrides) ── */
+  :root {
+    --c-primary: #FF6B35;      --c-primary-rgb: 255,107,53;
+    --c-primary-soft: #FF9A5C; --c-primary-soft-rgb: 255,154,92;
+    --c-highlight: #FFD166;    --c-highlight-rgb: 255,209,102;
+    --c-liquid-mid: #FF8A3D;
+    --c-accent: #6C63FF;       --c-accent-rgb: 108,99,255;
+    --c-accent-soft: #A8B4FF;  --c-accent-soft-rgb: 168,180,255;
+  }
+
   body {
     background: #080A12;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(108,99,255,.18) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,107,53,.14) 0%, transparent 55%);
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(var(--c-accent-rgb),.18) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(var(--c-primary-rgb),.14) 0%, transparent 55%);
     background-attachment: fixed;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -67,7 +81,7 @@ tailwind.config = {
   .orb-wrap { position: relative; width: 220px; height: 220px; }
   .orb-halo {
     position: absolute; inset: -24px;
-    background: conic-gradient(from 0deg, rgba(255,107,53,.0), rgba(255,154,92,.35), rgba(255,209,102,.20), rgba(108,99,255,.25), rgba(255,107,53,.0));
+    background: conic-gradient(from 0deg, rgba(var(--c-primary-rgb),.0), rgba(var(--c-primary-soft-rgb),.35), rgba(var(--c-highlight-rgb),.20), rgba(var(--c-accent-rgb),.25), rgba(var(--c-primary-rgb),.0));
     border-radius: 50%;
     animation: spin 12s linear infinite;
     filter: blur(18px);
@@ -82,8 +96,8 @@ tailwind.config = {
   .orb-body {
     position: relative; width: 100%; height: 100%;
     border-radius: 50%;
-    background: radial-gradient(circle at 38% 35%, rgba(255,154,92,.90) 0%, rgba(255,107,53,.70) 30%, rgba(108,99,255,.50) 65%, rgba(8,10,18,.80) 100%);
-    box-shadow: 0 0 60px rgba(255,107,53,.30), 0 0 120px rgba(108,99,255,.15), inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.30);
+    background: radial-gradient(circle at 38% 35%, rgba(var(--c-primary-soft-rgb),.90) 0%, rgba(var(--c-primary-rgb),.70) 30%, rgba(var(--c-accent-rgb),.50) 65%, rgba(8,10,18,.80) 100%);
+    box-shadow: 0 0 60px rgba(var(--c-primary-rgb),.30), 0 0 120px rgba(var(--c-accent-rgb),.15), inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.30);
     animation: breathe 4s ease-in-out infinite;
     display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px;
   }
@@ -95,8 +109,8 @@ tailwind.config = {
     filter: blur(4px);
   }
   @keyframes breathe {
-    0%,100% { transform: scale(1); box-shadow: 0 0 60px rgba(255,107,53,.30), 0 0 120px rgba(108,99,255,.15), inset 0 1px 0 rgba(255,255,255,.25); }
-    50% { transform: scale(1.04); box-shadow: 0 0 90px rgba(255,107,53,.45), 0 0 180px rgba(108,99,255,.25), inset 0 1px 0 rgba(255,255,255,.30); }
+    0%,100% { transform: scale(1); box-shadow: 0 0 60px rgba(var(--c-primary-rgb),.30), 0 0 120px rgba(var(--c-accent-rgb),.15), inset 0 1px 0 rgba(255,255,255,.25); }
+    50% { transform: scale(1.04); box-shadow: 0 0 90px rgba(var(--c-primary-rgb),.45), 0 0 180px rgba(var(--c-accent-rgb),.25), inset 0 1px 0 rgba(255,255,255,.30); }
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -127,11 +141,11 @@ tailwind.config = {
   }
   .habit-row:active { transform: scale(.975); }
   .habit-row.done {
-    background: rgba(255,107,53,0.10);
-    border-color: rgba(255,107,53,0.30);
-    box-shadow: 0 0 24px rgba(255,107,53,.12), inset 0 0 20px rgba(255,107,53,.06);
+    background: rgba(var(--c-primary-rgb),0.10);
+    border-color: rgba(var(--c-primary-rgb),0.30);
+    box-shadow: 0 0 24px rgba(var(--c-primary-rgb),.12), inset 0 0 20px rgba(var(--c-primary-rgb),.06);
   }
-  .habit-row.done .habit-label { color: rgba(232,234,242,0.45); text-decoration: line-through; text-decoration-color: rgba(255,107,53,.50); }
+  .habit-row.done .habit-label { color: rgba(232,234,242,0.45); text-decoration: line-through; text-decoration-color: rgba(var(--c-primary-rgb),.50); }
   .check-circle {
     width: 32px; height: 32px; border-radius: 50%;
     border: 2px solid rgba(255,255,255,0.15);
@@ -141,16 +155,16 @@ tailwind.config = {
     background: rgba(255,255,255,0.04);
   }
   .done .check-circle {
-    background: linear-gradient(135deg, #FF6B35, #FFD166);
+    background: linear-gradient(135deg, var(--c-primary), var(--c-highlight));
     border-color: transparent;
-    box-shadow: 0 0 16px rgba(255,107,53,.50);
+    box-shadow: 0 0 16px rgba(var(--c-primary-rgb),.50);
   }
   .check-icon { opacity: 0; transform: scale(0); transition: all .18s cubic-bezier(.34,1.56,.64,1); }
   .done .check-icon { opacity: 1; transform: scale(1); }
 
   /* ── Ripple ── */
   .ripple-host { position: relative; overflow: hidden; }
-  .ripple { position: absolute; border-radius: 50%; background: rgba(255,107,53,.25); transform: scale(0); animation: ripple .5s ease-out forwards; pointer-events: none; }
+  .ripple { position: absolute; border-radius: 50%; background: rgba(var(--c-primary-rgb),.25); transform: scale(0); animation: ripple .5s ease-out forwards; pointer-events: none; }
   @keyframes ripple { to { transform: scale(4); opacity: 0; } }
 
   /* ── Tab bar ── */
@@ -165,8 +179,8 @@ tailwind.config = {
     z-index: 100;
   }
   .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 14px; transition: all .18s; color: #8A8FAA; background: transparent; border: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .tab-btn.active { color: #FF6B35; }
-  .tab-btn.active .tab-dot { background: rgba(255,107,53,.20); }
+  .tab-btn.active { color: var(--c-primary); }
+  .tab-btn.active .tab-dot { background: rgba(var(--c-primary-rgb),.20); }
   .tab-dot { width: 4px; height: 4px; border-radius: 50%; background: transparent; transition: background .18s; }
   .tab-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
   .tab-label { font-size: 10px; font-weight: 600; letter-spacing: .04em; font-family: 'Outfit', sans-serif; }
@@ -179,8 +193,12 @@ tailwind.config = {
   .row-enter { animation: rowIn .28s ease both; }
 
   /* ── Button glow shadows ── */
-  .btn-glow-ember { box-shadow: 0 8px 24px rgba(255,107,53,.25); }
-  .btn-glow-aurora { box-shadow: 0 8px 24px rgba(108,99,255,.25); }
+  .btn-glow-ember { box-shadow: 0 8px 24px rgba(var(--c-primary-rgb),.25); }
+  .btn-glow-aurora { box-shadow: 0 8px 24px rgba(var(--c-accent-rgb),.25); }
+
+  /* ── Hide scrollbars on horizontal strips ── */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 
   /* ── Skeleton shimmer ── */
   @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
@@ -206,7 +224,7 @@ tailwind.config = {
     to   { transform: translateX(-220px); }
   }
   .orb-body.liquid-full {
-    box-shadow: 0 0 100px rgba(255,107,53,.65), 0 0 220px rgba(255,209,102,.35),
+    box-shadow: 0 0 100px rgba(var(--c-primary-rgb),.65), 0 0 220px rgba(var(--c-highlight-rgb),.35),
                 inset 0 1px 0 rgba(255,255,255,.30), inset 0 -1px 0 rgba(0,0,0,.30);
   }
   #liqWave   { transition: transform 0.8s ease-out; }
@@ -222,8 +240,8 @@ tailwind.config = {
   #orbSparks { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
   .orb-spark {
     position: absolute; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,224,150,.95) 0%, rgba(255,107,53,.65) 55%, transparent 100%);
-    box-shadow: 0 0 6px rgba(255,154,92,.6);
+    background: radial-gradient(circle, rgba(var(--c-highlight-rgb),.95) 0%, rgba(var(--c-primary-rgb),.65) 55%, transparent 100%);
+    box-shadow: 0 0 6px rgba(var(--c-primary-soft-rgb),.6);
     opacity: 0;
     animation: sparkRise var(--dur,1.8s) ease-out forwards;
   }
@@ -251,7 +269,7 @@ tailwind.config = {
   @keyframes rowShine { to { transform: translateX(220%); } }
   .just-done::after {
     content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(105deg, transparent 32%, rgba(255,214,150,.16) 50%, transparent 68%);
+    background: linear-gradient(105deg, transparent 32%, rgba(var(--c-highlight-rgb),.16) 50%, transparent 68%);
     transform: translateX(-100%);
     animation: rowShine .65s ease .05s forwards;
   }
@@ -280,7 +298,7 @@ tailwind.config = {
     border-radius: 16px;
     transition: all .18s;
   }
-  .lib-item:active { transform: scale(.97); background: rgba(255,107,53,0.08); border-color: rgba(255,107,53,.25); }
+  .lib-item:active { transform: scale(.97); background: rgba(var(--c-primary-rgb),0.08); border-color: rgba(var(--c-primary-rgb),.25); }
   .lib-item.added { border-color: rgba(82,227,160,.30); background: rgba(82,227,160,.07); }
 
   /* ── Scrollbar ── */
@@ -301,10 +319,10 @@ tailwind.config = {
 
   /* ── Voice btn ── */
   .voice-active { animation: voicePulse 1s ease-in-out infinite; }
-  @keyframes voicePulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,.4)} 50%{box-shadow:0 0 0 14px rgba(255,107,53,.0)} }
+  @keyframes voicePulse { 0%,100%{box-shadow:0 0 0 0 rgba(var(--c-primary-rgb),.4)} 50%{box-shadow:0 0 0 14px rgba(var(--c-primary-rgb),.0)} }
 
   /* ── Personal-best chip ── */
-  #pbChip { border: 1px solid rgba(255,209,102,.30); }
+  #pbChip { border: 1px solid rgba(var(--c-highlight-rgb),.30); }
 
   /* ── Confetti canvas ── */
   #confettiCanvas { position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:500; }
@@ -326,15 +344,15 @@ tailwind.config = {
   .drag-handle { touch-action: none; cursor: grab; color: #3D4160; flex-shrink:0; display:flex; align-items:center; padding:0 4px; }
   .drag-handle:active { cursor: grabbing; color: #8A8FAA; }
   .habit-row.drag-source { opacity: .25 !important; }
-  .habit-row.drag-over-above { box-shadow: 0 -2px 0 #FF6B35; }
-  .habit-row.drag-over-below { box-shadow: 0 2px 0 #FF6B35; }
+  .habit-row.drag-over-above { box-shadow: 0 -2px 0 var(--c-primary); }
+  .habit-row.drag-over-below { box-shadow: 0 2px 0 var(--c-primary); }
 
   /* ── Dynamic tint (warms with completion %) ── */
   #tintLayer {
     position: fixed; inset: 0; pointer-events: none; z-index: 0;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,107,53,.20) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,209,102,.16) 0%, transparent 55%);
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(var(--c-primary-rgb),.20) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(var(--c-highlight-rgb),.16) 0%, transparent 55%);
     opacity: 0;
     transition: opacity 1.2s ease;
   }
@@ -361,7 +379,7 @@ tailwind.config = {
   #onboard.hide { opacity: 0; pointer-events: none; }
   .onboard-slide { animation: rowIn .32s ease both; }
   .onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.18); transition: all .25s; }
-  .onboard-dot.on { background: #FF6B35; width: 18px; border-radius: 3px; }
+  .onboard-dot.on { background: var(--c-primary); width: 18px; border-radius: 3px; }
 
   /* ── Weekly recap ── */
   .recap-stat { flex:1; }
@@ -384,7 +402,7 @@ tailwind.config = {
 <!-- Notification banner -->
 <div id="notifBanner" class="notif-banner" role="alert" aria-live="polite">
   <div class="glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl">
-    <div class="w-8 h-8 flex items-center justify-center shrink-0" id="notifIcon" style="color:#FF6B35"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg></div>
+    <div class="w-8 h-8 flex items-center justify-center shrink-0" id="notifIcon" style="color:var(--c-primary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg></div>
     <div class="flex-1 min-w-0">
       <p class="font-semibold text-sm text-bone leading-tight" id="notifTitle">Ember</p>
       <p class="text-xs text-dusk mt-0.5 leading-snug" id="notifBody">You're on fire today.</p>
@@ -437,9 +455,9 @@ tailwind.config = {
               <circle cx="110" cy="110" r="109"/>
             </clipPath>
             <linearGradient id="liqGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#FFD166"/>
-              <stop offset="60%" stop-color="#FF8A3D"/>
-              <stop offset="100%" stop-color="#FF6B35"/>
+              <stop offset="0%" style="stop-color:var(--c-highlight)"/>
+              <stop offset="60%" style="stop-color:var(--c-liquid-mid)"/>
+              <stop offset="100%" style="stop-color:var(--c-primary)"/>
             </linearGradient>
           </defs>
           <g clip-path="url(#orbClip)">
@@ -451,14 +469,14 @@ tailwind.config = {
                 <g id="waveDrift" style="animation:waveDrift 4.8s linear infinite">
                   <!-- Depth wave (slightly behind, offset phase) -->
                   <path d="M-440,9 C-385,3 -275,15 -220,9 C-165,3 -55,15 0,9 C55,3 165,15 220,9 C275,3 385,15 440,9 L440,220 L-440,220 Z"
-                        fill="rgba(255,107,53,0.42)"/>
+                        style="fill:rgba(var(--c-primary-rgb),0.42)"/>
                   <!-- Front wave with gradient body -->
                   <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0 L440,220 L-440,220 Z"
                         fill="url(#liqGrad)" opacity="0.93"/>
                   <!-- Surface bright line + glow -->
                   <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
-                        fill="none" stroke="rgba(255,228,140,0.70)" stroke-width="3"
-                        style="filter:blur(1.5px)"/>
+                        fill="none" stroke-width="3"
+                        style="filter:blur(1.5px);stroke:rgba(var(--c-highlight-rgb),0.70)"/>
                   <path d="M-440,0 C-385,-7 -275,7 -220,0 C-165,-7 -55,7 0,0 C55,-7 165,7 220,0 C275,-7 385,7 440,0"
                         fill="none" stroke="rgba(255,255,200,0.35)" stroke-width="1.2"/>
                 </g>
@@ -474,7 +492,7 @@ tailwind.config = {
     </div>
 
     <!-- Personal-best chip -->
-    <div id="pbChip" class="hidden mt-3 glass-pill rounded-full px-3 py-1.5 flex items-center gap-1.5 text-xs font-semibold" style="color:#FFD166">
+    <div id="pbChip" class="hidden mt-3 glass-pill rounded-full px-3 py-1.5 flex items-center gap-1.5 text-xs font-semibold" style="color:var(--c-highlight)">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
       New record
     </div>
@@ -519,10 +537,9 @@ tailwind.config = {
   <!-- Add habit -->
   <div class="mt-4 flex gap-2.5">
     <input id="habitInput" type="text" maxlength="42" placeholder="Add a habit…"
-      class="flex-1 min-w-0 rounded-2xl px-4 py-3.5 text-[15px] bg-panel border border-white/08 placeholder:text-dusk/50 focus:outline-none focus:border-ember/50 transition-colors text-bone"
-      style="border-color:rgba(255,255,255,0.08)">
+      class="flex-1 min-w-0 rounded-2xl px-4 py-3.5 text-[15px] bg-panel border border-white/10 placeholder:text-dusk/50 focus:outline-none focus:border-ember/50 transition-colors text-bone">
     <button id="addHabitBtn" onclick="addHabit()" class="ripple-host shrink-0 rounded-2xl px-5 py-3.5 font-bold text-[15px] text-void transition-all active:scale-95"
-      style="background:linear-gradient(135deg,#FF6B35,#FFD166);box-shadow:0 8px 24px rgba(255,107,53,.25)">Add</button>
+      style="background:linear-gradient(135deg,var(--c-primary),var(--c-highlight));box-shadow:0 8px 24px rgba(var(--c-primary-rgb),.25)">Add</button>
   </div>
 
   <!-- New day -->
@@ -548,8 +565,7 @@ tailwind.config = {
     <p class="text-xs text-dusk mb-3 leading-relaxed">Add an Anthropic API key to unlock real AI coaching. Works great without it.</p>
     <div class="flex gap-2">
       <input id="apiKeyInput" type="password" placeholder="sk-ant-…" maxlength="120"
-        class="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-xs bg-void border border-white/08 placeholder:text-dusk/40 focus:outline-none focus:border-aurora/50 transition-colors text-bone font-mono"
-        style="border-color:rgba(255,255,255,0.08)">
+        class="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-xs bg-void border border-white/10 placeholder:text-dusk/40 focus:outline-none focus:border-aurora/50 transition-colors text-bone font-mono">
       <button onclick="saveApiKey()" class="shrink-0 glass-pill rounded-xl px-4 py-2.5 text-xs font-semibold text-aurora">Save</button>
     </div>
   </div>
@@ -557,7 +573,7 @@ tailwind.config = {
   <!-- Coach response -->
   <div class="glass-panel rounded-2xl p-5 mb-4 min-h-[160px]">
     <div class="flex items-center gap-2 mb-4">
-      <div class="w-8 h-8 rounded-full grid place-items-center" style="background:linear-gradient(135deg,#6C63FF,#A8B4FF);color:white"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="w-8 h-8 rounded-full grid place-items-center" style="background:linear-gradient(135deg,var(--c-accent),var(--c-accent-soft));color:white"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
       <div>
         <p class="font-semibold text-sm">Ember Coach</p>
         <p class="text-xs text-dusk" id="coachTime">—</p>
@@ -572,7 +588,7 @@ tailwind.config = {
   </div>
 
   <button onclick="getCoachInsight()" class="w-full rounded-2xl py-3.5 font-bold text-sm text-void active:scale-95 transition-all mb-4"
-    style="background:linear-gradient(135deg,#6C63FF,#A8B4FF);box-shadow:0 8px 24px rgba(108,99,255,.25)">
+    style="background:linear-gradient(135deg,var(--c-accent),var(--c-accent-soft));box-shadow:0 8px 24px rgba(var(--c-accent-rgb),.25)">
     Get fresh insight ✦
   </button>
 
@@ -644,17 +660,24 @@ tailwind.config = {
     <div class="flex items-center gap-2 mt-3">
       <span class="text-xs text-dusk">Less</span>
       <div style="width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,0.05)"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:#6C63FF;opacity:.5"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:#FF6B35;opacity:.6"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:#FF6B35"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:var(--c-accent);opacity:.5"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:var(--c-primary);opacity:.6"></div>
+      <div style="width:10px;height:10px;border-radius:2px;background:var(--c-primary)"></div>
       <span class="text-xs text-dusk">More</span>
     </div>
   </div>
 
   <!-- Time breakdown -->
-  <div class="glass-panel rounded-2xl p-4">
+  <div class="glass-panel rounded-2xl p-4 mb-4">
     <p class="text-xs font-semibold text-dusk uppercase tracking-widest mb-3">Today's breakdown</p>
     <div id="habitBreakdown" class="space-y-2.5"></div>
+  </div>
+
+  <!-- Theme picker -->
+  <div class="glass-panel rounded-2xl p-4">
+    <p class="text-xs font-semibold text-dusk uppercase tracking-widest mb-1">Theme</p>
+    <p class="text-xs text-dusk mb-4">Pick the color of your fire.</p>
+    <div id="themePicker" class="flex gap-4 flex-wrap"></div>
   </div>
 </div>
 
@@ -689,13 +712,66 @@ tailwind.config = {
 //  STATE
 // ═══════════════════════════════════════════
 const KEY = 'ember.v2';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const uid = () => Math.random().toString(36).slice(2,9);
 const dayKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); };
+const daysAgoKey = n => { const d=new Date(); d.setDate(d.getDate()-n); return dayKey(d); };
 const isNextDay = (a, b) => { const [y,m,d]=a.split('-').map(Number),dt=new Date(y,m-1,d); dt.setDate(dt.getDate()+1); return dayKey(dt)===b; };
 
 const ACCENT_COLORS = ['#FF6B35','#FFD166','#52E3A0','#6C63FF','#A8B4FF','#C8F0FF'];
+
+// ═══════════════════════════════════════════
+//  THEMES
+// ═══════════════════════════════════════════
+// Each theme recolors the fire (primary/soft/highlight/liquid) and the cool
+// counterpoint (accent/accentSoft). Void background + glass stay constant.
+const THEMES = {
+  ember:  {label:'Ember',  emoji:'🔥', primary:'#FF6B35', primaryRgb:'255,107,53',  soft:'#FF9A5C', softRgb:'255,154,92',  highlight:'#FFD166', highlightRgb:'255,209,102', liquidMid:'#FF8A3D', accent:'#6C63FF', accentRgb:'108,99,255',  accentSoft:'#A8B4FF', accentSoftRgb:'168,180,255'},
+  ocean:  {label:'Ocean',  emoji:'🌊', primary:'#2E9BFF', primaryRgb:'46,155,255',  soft:'#63B8FF', softRgb:'99,184,255',  highlight:'#9FE8FF', highlightRgb:'159,232,255', liquidMid:'#46A9FF', accent:'#8B5CF6', accentRgb:'139,92,246',  accentSoft:'#C4B5FD', accentSoftRgb:'196,181,253'},
+  forest: {label:'Forest', emoji:'🌿', primary:'#34D399', primaryRgb:'52,211,153',  soft:'#6EE7B7', softRgb:'110,231,183', highlight:'#D9F99D', highlightRgb:'217,249,157', liquidMid:'#4ADE80', accent:'#38BDF8', accentRgb:'56,189,248',  accentSoft:'#7DD3FC', accentSoftRgb:'125,211,252'},
+  aurora: {label:'Aurora', emoji:'🌌', primary:'#8B5CF6', primaryRgb:'139,92,246',  soft:'#A78BFA', softRgb:'167,139,250', highlight:'#F0ABFC', highlightRgb:'240,171,252', liquidMid:'#9D6FF8', accent:'#2E9BFF', accentRgb:'46,155,255',  accentSoft:'#7DD3FC', accentSoftRgb:'125,211,252'},
+  rose:   {label:'Rose',   emoji:'🌸', primary:'#FB7185', primaryRgb:'251,113,133', soft:'#FDA4AF', softRgb:'253,164,175', highlight:'#FDE68A', highlightRgb:'253,230,138', liquidMid:'#FC8B9B', accent:'#8B5CF6', accentRgb:'139,92,246',  accentSoft:'#C4B5FD', accentSoftRgb:'196,181,253'},
+};
+function T() { return THEMES[S.theme] || THEMES.ember; }
+
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.ember;
+  const r = document.documentElement.style;
+  r.setProperty('--c-primary', t.primary);        r.setProperty('--c-primary-rgb', t.primaryRgb);
+  r.setProperty('--c-primary-soft', t.soft);      r.setProperty('--c-primary-soft-rgb', t.softRgb);
+  r.setProperty('--c-highlight', t.highlight);    r.setProperty('--c-highlight-rgb', t.highlightRgb);
+  r.setProperty('--c-liquid-mid', t.liquidMid);
+  r.setProperty('--c-accent', t.accent);          r.setProperty('--c-accent-rgb', t.accentRgb);
+  r.setProperty('--c-accent-soft', t.accentSoft); r.setProperty('--c-accent-soft-rgb', t.accentSoftRgb);
+  spawnParticles();          // rebuild background particles in theme colors
+  renderSoundBtn();          // header icon tint
+}
+
+function setTheme(name) {
+  if (!THEMES[name] || name === S.theme) return;
+  S.theme = name;
+  save();
+  applyTheme(name);
+  render();                  // re-derives tint, heatmap colors, week bars
+  renderHeatmap();
+  renderThemePicker();
+  buzz(10); sfxTick();
+  showToast(`${THEMES[name].emoji} ${THEMES[name].label} theme`);
+}
+
+function renderThemePicker() {
+  const el = document.getElementById('themePicker');
+  if (!el) return;
+  el.innerHTML = Object.entries(THEMES).map(([k, t]) => `
+    <button onclick="setTheme('${k}')" class="flex flex-col items-center gap-1.5" aria-label="${t.label} theme" aria-pressed="${S.theme === k}">
+      <span style="width:36px;height:36px;border-radius:50%;display:block;
+        background:radial-gradient(circle at 35% 30%, ${t.highlight} 0%, ${t.primary} 62%, ${t.accent} 100%);
+        box-shadow:0 0 14px rgba(${t.primaryRgb},.45);
+        border:2px solid ${S.theme === k ? 'rgba(255,255,255,.85)' : 'transparent'};transition:all .15s"></span>
+      <span class="text-[10px] font-mono ${S.theme === k ? 'text-bone font-semibold' : 'text-dusk'}">${t.label}</span>
+    </button>`).join('');
+}
 
 const DEFAULTS = [
   {label:'Brush teeth', emoji:'🦷', cat:'body'},
@@ -715,6 +791,7 @@ function freshState() {
     notifGranted: false,
     lastSuggestTime: 0,
     sound: 'sfx',      // 'off' | 'sfx' | 'amb'
+    theme: 'ember',    // key into THEMES
     onboarded: false,
     coachCallTimestamps: [],
     schemaVersion: SCHEMA_VERSION,
@@ -758,6 +835,11 @@ function migrateState(state, from) {
     // are patched by the lazy migrations in loadState — nothing else to do.
     v = 2;
   }
+  if (v < 3) {
+    // v2 → v3: added S.theme. Default to the original palette.
+    if (!THEMES[state.theme]) state.theme = 'ember';
+    v = 3;
+  }
   state.schemaVersion = SCHEMA_VERSION;
   return state;
 }
@@ -781,8 +863,8 @@ function showStorageBanner() {
   div.id = 'storageBanner';
   div.setAttribute('role', 'alert');
   div.innerHTML = `
-    <div class="glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl" style="border-color:rgba(255,107,53,.5)">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div class="glass-panel rounded-2xl p-4 flex items-center gap-3 shadow-2xl" style="border-color:rgba(var(--c-primary-rgb),.5)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0" style="stroke:var(--c-primary)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <p class="flex-1 text-sm text-bone leading-snug">Your data isn't saving right now — check your browser storage settings.</p>
       <button onclick="hideStorageBanner()" class="text-dusk p-1 shrink-0" aria-label="Dismiss"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>`;
@@ -804,14 +886,18 @@ function liveStreak() {
 function rollover(manual=false) {
   const today = dayKey();
   if (S.day === today && !manual) return false;
-  // Archive yesterday
+  // Archive the previous active day — including 0-done days, so history
+  // stays honest (recap averages and heatmap show misses, not gaps)
   const doneCount = S.habits.filter(h=>h.done).length;
-  if (doneCount > 0) S.history[S.day] = {done:doneCount, total:S.habits.length};
-  // Streak freeze: if the user missed yesterday and has a freeze, consume it
-  const allDonePrevDay = S.lastCredited === S.day;
-  if (!allDonePrevDay && S.streak > 0 && S.freezesAvailable > 0) {
+  if (S.habits.length > 0) S.history[S.day] = {done:doneCount, total:S.habits.length};
+  // Streak freeze: bridge EXACTLY one missed day. Only consume a freeze when
+  // it actually saves the streak — i.e. the last credited day was the day
+  // before yesterday. Longer gaps kill the streak anyway; don't waste one.
+  if (S.streak > 0 && S.freezesAvailable > 0 &&
+      S.lastCredited !== today && S.lastCredited !== yesterday() &&
+      S.lastCredited === daysAgoKey(2)) {
     S.freezesAvailable--;
-    S.lastCredited = S.day; // treat prev day as credited to preserve streak
+    S.lastCredited = yesterday(); // credit the missed day to preserve streak
     showToast(`❄️ Streak freeze used — ${S.freezesAvailable} left`);
   }
 
@@ -881,7 +967,7 @@ function addHabit() {
   const inp = document.getElementById('habitInput');
   const label = inp.value.trim();
   if (!label) return;
-  S.habits.push({id:uid(), label, emoji:'✨', cat:'custom', done:false, preset:false, addedAt:Date.now()});
+  S.habits.push({id:uid(), label, emoji:'✨', cat:'custom', done:false, preset:false, addedAt:Date.now(), streakDays:0, lastDoneDay:null, accent:null});
   inp.value=''; buzz(10); save(); render();
   showToast('✨ Habit added');
 }
@@ -898,7 +984,7 @@ function setHabitAccent(id, color) {
 
 function addFromLib(label, emoji, cat) {
   if (S.habits.find(h=>h.label===label)) { showToast('Already in your list'); return; }
-  S.habits.push({id:uid(), label, emoji, cat, done:false, preset:false, addedAt:Date.now()});
+  S.habits.push({id:uid(), label, emoji, cat, done:false, preset:false, addedAt:Date.now(), streakDays:0, lastDoneDay:null, accent:null});
   buzz(10); save(); render(); renderLibrary();
   showToast(`${emoji} Added to today`);
 }
@@ -1127,7 +1213,7 @@ function makeHabitRow(h, idx=0) {
   div.setAttribute('tabindex','0');
   div.setAttribute('aria-label', h.label);
   div.onclick = (e) => { if(e.target.closest('.del-btn,.drag-handle,.accent-btn')) return; toggleHabit(h.id, e); };
-  div.onkeydown = (e) => { if(e.key===' '||e.key==='Enter') toggleHabit(h.id, e); };
+  div.onkeydown = (e) => { if(e.key===' '||e.key==='Enter') { e.preventDefault(); toggleHabit(h.id, e); } };
 
   // Accent-aware check circle style
   const accentCircle = (h.done && h.accent)
@@ -1190,11 +1276,16 @@ function applyTint(pct) {
   const layer = document.getElementById('tintLayer');
   if (layer) layer.style.opacity = (pct * 0.9).toFixed(2);
 
-  // Blend meta theme-color from void #080A12 toward warm ember-black #180C08
-  const mix = (a,b) => Math.round(a + (b-a) * pct);
+  // Blend meta theme-color from void #080A12 toward a dark tint of the
+  // theme primary (8% mix) as the day fills in
+  const prim = T().primaryRgb.split(',').map(Number);
+  const VOID = [0x08, 0x0A, 0x12];
   const hex = n => n.toString(16).padStart(2,'0');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = `#${hex(mix(0x08,0x18))}${hex(mix(0x0A,0x0C))}${hex(mix(0x12,0x08))}`;
+  if (meta) meta.content = '#' + VOID.map((v,i) => {
+    const end = Math.round(v + (prim[i] - v) * 0.08);
+    return hex(Math.round(v + (end - v) * pct));
+  }).join('');
 
   // Orb halos brighten as the day fills
   document.querySelectorAll('.orb-halo, .orb-halo-2').forEach(el => {
@@ -1229,6 +1320,7 @@ function renderStats() {
   document.getElementById('statBest').textContent = S.best;
   document.getElementById('statTotal').textContent = S.totalCompleted;
   document.getElementById('statHabits').textContent = S.habits.length;
+  renderThemePicker();
 
   // 7-day history
   const week = document.getElementById('weekHistory');
@@ -1241,12 +1333,12 @@ function renderStats() {
     const done=isToday?S.habits.filter(h=>h.done).length:(rec?rec.done:0);
     const total=isToday?S.habits.length:(rec?rec.total:0);
     const pct=total>0?done/total:0;
-    const col=pct===1?'#FF6B35':pct>0?'#6C63FF':'rgba(255,255,255,0.06)';
+    const col=pct===1?'var(--c-primary)':pct>0?'var(--c-accent)':'rgba(255,255,255,0.06)';
     week.innerHTML+=`
       <div class="flex-1 flex flex-col items-center gap-1.5">
         <div class="w-full rounded-xl relative overflow-hidden" style="height:56px;background:rgba(255,255,255,0.04)">
           <div class="absolute bottom-0 left-0 right-0 rounded-xl transition-all" style="height:${Math.max(pct*100,pct>0?15:0)}%;background:${col};opacity:.85"></div>
-          ${isToday?'<div class="absolute inset-x-0 top-0 h-0.5 rounded-full" style="background:linear-gradient(90deg,#FF6B35,#FFD166)"></div>':''}
+          ${isToday?'<div class="absolute inset-x-0 top-0 h-0.5 rounded-full" style="background:linear-gradient(90deg,var(--c-primary),var(--c-highlight))"></div>':''}
         </div>
         <span class="text-[10px] font-mono ${isToday?'text-ember font-bold':'text-dusk'}">${days[d.getDay()]}</span>
         <span class="text-[9px] text-dusk/60">${total>0?done+'/'+total:''}</span>
@@ -1289,7 +1381,8 @@ function showConfetti() {
   canvas.height = window.innerHeight;
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
-  const COLORS = ['#FF6B35','#FFD166','#52E3A0','#6C63FF','#A8B4FF','#FF9A5C','#C8F0FF'];
+  const t = T();
+  const COLORS = [t.primary, t.highlight, '#52E3A0', t.accent, t.accentSoft, t.soft, '#C8F0FF'];
   const pieces = Array.from({length:90}, () => ({
     x: Math.random() * canvas.width,
     y: -12 - Math.random() * 60,
@@ -1382,9 +1475,9 @@ function renderHeatmap() {
         }
         if (pct === null)   bg = 'rgba(255,255,255,0.05)';
         else if (pct === 0) bg = 'rgba(255,255,255,0.07)';
-        else if (pct < .5)  { bg = '#6C63FF'; opacity = `opacity:${(.3 + pct * .5).toFixed(2)};`; }
-        else if (pct < 1)   { bg = '#FF6B35'; opacity = `opacity:${(.45 + pct * .4).toFixed(2)};`; }
-        else                  bg = '#FF6B35';
+        else if (pct < .5)  { bg = 'var(--c-accent)'; opacity = `opacity:${(.3 + pct * .5).toFixed(2)};`; }
+        else if (pct < 1)   { bg = 'var(--c-primary)'; opacity = `opacity:${(.45 + pct * .4).toFixed(2)};`; }
+        else                  bg = 'var(--c-primary)';
       }
       const outline = isToday ? 'outline:1.5px solid rgba(255,255,255,.5);outline-offset:1px;' : '';
       html += `<div class="heatmap-cell" style="background:${bg};${opacity}${outline}" title="${k}"></div>`;
@@ -1441,13 +1534,13 @@ function renderWeekRecap() {
   if (avgPrev !== null) {
     const delta = Math.round((avgThis - avgPrev) * 100);
     if (delta > 5)       trendHtml = `<span style="color:#52E3A0">↑ ${delta}% vs prior week</span>`;
-    else if (delta < -5) trendHtml = `<span style="color:#FF6B35">↓ ${Math.abs(delta)}% vs prior week</span>`;
+    else if (delta < -5) trendHtml = `<span style="color:var(--c-primary)">↓ ${Math.abs(delta)}% vs prior week</span>`;
     else                 trendHtml = `<span style="color:#8A8FAA">≈ on par with prior week</span>`;
   }
 
   el.innerHTML = `
     <div class="flex items-center gap-2 mb-3">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--c-primary)"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <p class="text-xs font-semibold text-dusk uppercase tracking-widest">This week</p>
     </div>
     <div class="flex gap-5 mb-3">
@@ -1523,7 +1616,7 @@ function renderLibrary() {
       </div>
       <button onclick="addFromLib('${escHtml(item.label).replace(/'/g,"\\'")}','${item.emoji}','${item.cat}')"
         class="shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${has?'text-sage glass-pill':'text-void'}"
-        style="${has?'':'background:linear-gradient(135deg,#FF6B35,#FFD166)'}">${has?'✓ Added':'+ Add'}</button>`;
+        style="${has?'':'background:linear-gradient(135deg,var(--c-primary),var(--c-highlight))'}">${has?'✓ Added':'+ Add'}</button>`;
     grid.appendChild(div);
   });
 }
@@ -1750,15 +1843,17 @@ async function requestNotifications() {
   save();
   if(perm==='granted') {
     showToast('🔔 Notifications enabled');
-    document.getElementById('notifBtn').style.color='#FF6B35';
+    document.getElementById('notifBtn').style.color='var(--c-primary)';
     scheduleNotifications();
   } else {
     showToast('Notifications blocked — enable in phone settings');
   }
 }
 
+let _notifTmr = null;
 function scheduleNotifications() {
   if(!S.notifGranted || !('Notification' in window)) return;
+  clearTimeout(_notifTmr); // never stack timer chains (e.g. bell re-tapped)
   // Show next upcoming notification
   const now = new Date();
   const next = NOTIF_SCHEDULE.find(n => {
@@ -1768,9 +1863,9 @@ function scheduleNotifications() {
   if(!next) return;
   const t = new Date(); t.setHours(next.h,next.m,0,0);
   const delay = t-now;
-  setTimeout(()=>{
+  _notifTmr = setTimeout(()=>{
     if(document.hidden) {
-      new Notification(next.title, {body:next.body, icon:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23080A12'/%3E%3Cpath d='M32 8c4 18 16 22 16 38a16 16 0 0 1-32 0c0-8 3-12 6-16 2 6 5 9 8 10-2-12 0-22 2-32z' fill='%23FF6B35'/%3E%3C/svg%3E"});
+      new Notification(next.title, {body:next.body, icon:`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23080A12'/%3E%3Cpath d='M32 8c4 18 16 22 16 38a16 16 0 0 1-32 0c0-8 3-12 6-16 2 6 5 9 8 10-2-12 0-22 2-32z' fill='%23${T().primary.slice(1)}'/%3E%3C/svg%3E`});
     } else {
       showBanner('🔔', next.title, next.body);
     }
@@ -1981,7 +2076,7 @@ function renderSoundBtn() {
   const btn = document.getElementById('soundBtn');
   if (!btn) return;
   btn.innerHTML = _SOUND_ICONS[S.sound] || _SOUND_ICONS.off;
-  btn.style.color = S.sound === 'off' ? '' : '#FF9A5C';
+  btn.style.color = S.sound === 'off' ? '' : T().soft;
   btn.setAttribute('aria-label',
     S.sound === 'off' ? 'Sound off' : S.sound === 'sfx' ? 'Sound effects on' : 'Sound + ambient crackle on');
 }
@@ -2038,7 +2133,7 @@ function showToast(msg) {
 }
 
 const _BANNER_SVG = {
-  '🔥': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg>`,
+  '🔥': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--c-primary)"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-3-1.5-5-3-6 0 1.5-1 3-3 3 1.5-4 0-8 0-11z"/></svg>`,
   '🔔': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
 };
 let notifTimer;
@@ -2059,9 +2154,11 @@ function dismissNotif() { document.getElementById('notifBanner').classList.remov
 // ═══════════════════════════════════════════
 function spawnParticles() {
   const container=document.getElementById('particles');
-  const colors=['#FF6B35','#FFD166','#6C63FF','#A8B4FF'];
+  container.innerHTML='';  // clear on re-theme
+  const t=T();
+  const colors=[t.primary,t.highlight,t.accent,t.accentSoft];
   // Soft bokeh orbs for background depth
-  const bokehCols=['rgba(255,107,53,.07)','rgba(108,99,255,.09)','rgba(255,209,102,.05)'];
+  const bokehCols=[`rgba(${t.primaryRgb},.07)`,`rgba(${t.accentRgb},.09)`,`rgba(${t.highlightRgb},.05)`];
   for(let i=0;i<3;i++) {
     const b=document.createElement('div');
     b.className='bokeh';
@@ -2126,7 +2223,7 @@ function renderOnboardSlide() {
         ${ONBOARD_SLIDES.map((_,i)=>`<span class="onboard-dot ${i===_onboardIdx?'on':''}"></span>`).join('')}
       </div>
       <button onclick="nextOnboard()" class="w-full rounded-2xl py-3.5 font-bold text-[15px] text-void active:scale-95 transition-all"
-        style="background:linear-gradient(135deg,#FF6B35,#FFD166);box-shadow:0 8px 24px rgba(255,107,53,.25)">
+        style="background:linear-gradient(135deg,var(--c-primary),var(--c-highlight));box-shadow:0 8px 24px rgba(var(--c-primary-rgb),.25)">
         ${last ? 'Light it up' : 'Next'}</button>
       ${last ? '' : `<button onclick="finishOnboarding()" class="mt-3 text-xs text-dusk">Skip</button>`}
     </div>`;
@@ -2174,6 +2271,9 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
 //  INIT
 // ═══════════════════════════════════════════
 (function init() {
+  // Apply saved theme before first render so nothing flashes orange
+  applyTheme(S.theme);
+
   // Disable liquid transition for the very first paint so the orb
   // appears at the correct level instantly with no animated jump.
   const waveEl = document.getElementById('liqWave');
@@ -2191,7 +2291,6 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
     });
   });
 
-  spawnParticles();
   startMotionDetection();
   getLocation();
   scheduleNotifications();
