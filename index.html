@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <script>
 tailwind.config = {
   theme: {
@@ -520,6 +521,10 @@ tailwind.config = {
     </div>
   </div>
 
+  <!-- Partner strip (Phase 2 — hidden unless paired) -->
+  <button id="partnerStrip" onclick="refreshPartner();showToast('☁️ Refreshing…')"
+    class="hidden w-full glass-panel rounded-2xl px-4 py-3 mb-5 flex items-center gap-3 text-left" aria-label="Partner progress — tap to refresh"></button>
+
   <!-- Habits section header -->
   <div class="flex items-center justify-between mb-3">
     <h2 class="font-semibold text-sm text-dusk uppercase tracking-widest">Today's habits</h2>
@@ -568,6 +573,15 @@ tailwind.config = {
         class="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-xs bg-void border border-white/10 placeholder:text-dusk/40 focus:outline-none focus:border-aurora/50 transition-colors text-bone font-mono">
       <button onclick="saveApiKey()" class="shrink-0 glass-pill rounded-xl px-4 py-2.5 text-xs font-semibold text-aurora">Save</button>
     </div>
+  </div>
+
+  <!-- Partner sync (Phase 2, optional) -->
+  <div class="glass-panel rounded-2xl p-4 mb-5">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-xs font-semibold text-dusk uppercase tracking-widest">Partner (optional)</p>
+      <span class="text-xs glass-pill rounded-full px-2 py-0.5 text-dusk" id="partnerStatus">Off</span>
+    </div>
+    <div id="partnerBody"></div>
   </div>
 
   <!-- Coach response -->
@@ -712,7 +726,7 @@ tailwind.config = {
 //  STATE
 // ═══════════════════════════════════════════
 const KEY = 'ember.v2';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 // ═══════════════════════════════════════════
 //  STORAGE PROVIDER
@@ -817,6 +831,8 @@ function freshState() {
     lastSuggestTime: 0,
     sound: 'sfx',      // 'off' | 'sfx' | 'amb'
     theme: 'ember',    // key into THEMES
+    cloud: {url:'', anonKey:'', displayName:''},  // Supabase config (optional)
+    partnerCache: null, // last fetched partner snapshot {name,days,today,streak,fetchedAt}
     onboarded: false,
     coachCallTimestamps: [],
     schemaVersion: SCHEMA_VERSION,
@@ -865,6 +881,13 @@ function migrateState(state, from) {
     if (!THEMES[state.theme]) state.theme = 'ember';
     v = 3;
   }
+  if (v < 4) {
+    // v3 → v4: partner sync (Supabase config + partner snapshot cache)
+    if (!state.cloud || typeof state.cloud !== 'object') state.cloud = {url:'', anonKey:'', displayName:''};
+    if (state.cloud.displayName == null) state.cloud.displayName = '';
+    if (!('partnerCache' in state)) state.partnerCache = null;
+    v = 4;
+  }
   state.schemaVersion = SCHEMA_VERSION;
   return state;
 }
@@ -879,6 +902,7 @@ function save() {
     console.warn('[ember] save failed — data is NOT persisting:', err);
     if (!_storageFailed) { _storageFailed = true; showStorageBanner(); }
   }
+  schedulePush(); // partner sync write-behind (no-op unless signed in)
 }
 
 // Persistent (non-auto-dismissing) storage-failure banner
@@ -1851,6 +1875,303 @@ function saveApiKey() {
 }
 
 // ═══════════════════════════════════════════
+//  PARTNER SYNC (Supabase — optional, Phase 2)
+// ═══════════════════════════════════════════
+// Own data stays device-authoritative; the cloud stores only daily
+// summaries (done/total/streak — never habit names). Partner data is a
+// read-only mirror cached in S.partnerCache. Everything here is dormant
+// until S.cloud is configured, and every failure degrades to local-only.
+let _sb = null, _cloudUser = null, _pushTmr = null, _partnerUIKey = '';
+
+function cloudConfigured() { return !!(S.cloud && S.cloud.url && S.cloud.anonKey); }
+
+function sb() {
+  if (!cloudConfigured() || !window.supabase) return null;
+  if (!_sb) {
+    _sb = window.supabase.createClient(S.cloud.url, S.cloud.anonKey);
+    _sb.auth.onAuthStateChange((_evt, session) => {
+      _cloudUser = session ? session.user : null;
+      renderPartnerUI();
+      if (_cloudUser) { ensureProfile(); schedulePush(0); refreshPartner(); }
+    });
+  }
+  return _sb;
+}
+
+function saveCloudConfig() {
+  const url = document.getElementById('sbUrl').value.trim().replace(/\/+$/, '');
+  const key = document.getElementById('sbKey').value.trim();
+  if (!url || !key) { showToast('Enter both URL and anon key'); return; }
+  S.cloud = Object.assign({}, S.cloud, {url, anonKey: key});
+  _sb = null; _cloudUser = null;
+  save();
+  if (!sb()) { showToast('Cloud library not loaded — check connection'); return; }
+  renderPartnerUI(true);
+  initCloudSession();
+  showToast('☁️ Cloud configured');
+}
+
+async function initCloudSession() {
+  const c = sb(); if (!c) return;
+  try {
+    const { data } = await c.auth.getSession();
+    _cloudUser = data.session ? data.session.user : null;
+  } catch (e) { console.warn('[ember] cloud session check failed:', e); }
+  renderPartnerUI();
+  if (_cloudUser) { ensureProfile(); schedulePush(0); refreshPartner(); }
+}
+
+async function cloudSignIn() {
+  const c = sb(); if (!c) return;
+  const email = document.getElementById('sbEmail').value.trim();
+  if (!/.+@.+\..+/.test(email)) { showToast('Enter a valid email'); return; }
+  const status = document.getElementById('sbAuthStatus');
+  status.textContent = 'Sending…';
+  const { error } = await c.auth.signInWithOtp({
+    email, options: { emailRedirectTo: location.origin + location.pathname },
+  });
+  if (error) {
+    console.warn('[ember] magic link failed:', error.message);
+    status.textContent = 'Could not send — check the URL/key and Supabase auth settings.';
+    return;
+  }
+  status.textContent = '✉️ Link sent! Open the email on THIS device.';
+}
+
+async function cloudSignOut() {
+  const c = sb();
+  if (c) try { await c.auth.signOut(); } catch {}
+  _cloudUser = null;
+  renderPartnerUI(true);
+  showToast('Signed out');
+}
+
+async function ensureProfile() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  const name = (S.cloud.displayName || '').trim() || (_cloudUser.email || 'Ember').split('@')[0];
+  try { await c.from('profiles').upsert({ id: _cloudUser.id, display_name: name }); }
+  catch (e) { console.warn('[ember] profile upsert failed:', e); }
+}
+
+function savePartnerName() {
+  S.cloud.displayName = document.getElementById('sbName').value.trim();
+  save(); ensureProfile();
+  showToast('Name saved');
+}
+
+// ── Push own summary (debounced write-behind; save() calls schedulePush) ──
+function schedulePush(delay = 3000) {
+  if (!_cloudUser) return;
+  clearTimeout(_pushTmr);
+  _pushTmr = setTimeout(pushSummary, delay);
+}
+
+async function pushSummary() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  const total = S.habits.length, done = S.habits.filter(h => h.done).length;
+  const { error } = await c.from('daily_summaries').upsert({
+    user_id: _cloudUser.id, day: S.day, done, total,
+    streak: liveStreak(), updated_at: new Date().toISOString(),
+  });
+  if (error) console.warn('[ember] cloud push failed:', error.message);
+}
+
+// ── Pairing ──────────────────────────────────────────────────────────────
+function makePairCode() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L ambiguity
+  return Array.from({length: 6}, () => A[Math.floor(Math.random() * A.length)]).join('');
+}
+
+async function createPair() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  const code = makePairCode();
+  const { error } = await c.from('pairs').insert({ code, creator: _cloudUser.id });
+  if (error) { showToast('Could not create code — try again'); return; }
+  const out = document.getElementById('pairCodeOut');
+  if (out) { out.textContent = code; out.parentElement.classList.remove('hidden'); }
+  showToast('Code created — share it with your partner');
+}
+
+async function claimPair() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  const code = document.getElementById('pairCodeIn').value.trim().toUpperCase();
+  if (code.length !== 6) { showToast('Enter the 6-character code'); return; }
+  const { data, error } = await c.from('pairs')
+    .update({ partner: _cloudUser.id }).eq('code', code).is('partner', null).select();
+  if (error || !data || !data.length) { showToast('Code not found or already used'); return; }
+  showToast('🔗 Paired!');
+  buzz([12,8,18]); sfxComplete();
+  refreshPartner();
+}
+
+async function getPair() {
+  const c = sb(); if (!c || !_cloudUser) return null;
+  const { data, error } = await c.from('pairs').select('*')
+    .or(`creator.eq.${_cloudUser.id},partner.eq.${_cloudUser.id}`)
+    .not('partner', 'is', null).limit(1);
+  if (error) { console.warn('[ember] pair lookup failed:', error.message); return null; }
+  return (data && data[0]) || null;
+}
+
+async function unlinkPair() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  const p = await getPair(); if (!p) return;
+  await c.from('pairs').delete().eq('code', p.code);
+  S.partnerCache = null; save();
+  renderPartnerUI(true); renderPartnerStrip();
+  showToast('Unlinked');
+}
+
+// ── Partner snapshot (read-only mirror) ──────────────────────────────────
+async function refreshPartner() {
+  const c = sb(); if (!c || !_cloudUser) return;
+  try {
+    const pair = await getPair();
+    if (!pair) { S.partnerCache = null; renderPartnerUI(); renderPartnerStrip(); return; }
+    const pid = pair.creator === _cloudUser.id ? pair.partner : pair.creator;
+    const [prof, sums] = await Promise.all([
+      c.from('profiles').select('display_name').eq('id', pid).single(),
+      c.from('daily_summaries').select('day,done,total,streak')
+        .eq('user_id', pid).gte('day', daysAgoKey(6)).order('day'),
+    ]);
+    const days = sums.data || [];
+    const today = days.find(d => d.day === dayKey()) || null;
+    const latest = days.length ? days[days.length - 1] : null;
+    S.partnerCache = {
+      name: (prof.data && prof.data.display_name) || 'Partner',
+      days, today,
+      streak: today ? today.streak : (latest ? latest.streak : 0),
+      fetchedAt: Date.now(),
+    };
+    save();
+  } catch (e) { console.warn('[ember] partner fetch failed:', e); }
+  renderPartnerUI(); renderPartnerStrip();
+}
+
+function renderPartnerStrip() {
+  const el = document.getElementById('partnerStrip');
+  if (!el) return;
+  const pc = S.partnerCache;
+  if (!pc) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const t = pc.today;
+  const bars = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = daysAgoKey(i);
+    const d = (pc.days || []).find(x => x.day === k);
+    const p = d && d.total ? d.done / d.total : 0;
+    bars.push(`<div style="width:5px;height:20px;border-radius:2px;background:rgba(255,255,255,.07);position:relative;overflow:hidden">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:${Math.round(p * 100)}%;background:${p === 1 ? 'var(--c-primary)' : 'var(--c-accent)'}"></div></div>`);
+  }
+  el.innerHTML = `
+    <span class="text-xl" aria-hidden="true">❤️‍🔥</span>
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-semibold text-bone truncate">${escHtml(pc.name)}</p>
+      <p class="text-xs text-dusk mt-0.5">${t ? `${t.done} of ${t.total} lit today` : 'no check-ins yet today'} · 🔥 ${pc.streak}</p>
+    </div>
+    <div class="flex items-end gap-1 shrink-0">${bars.join('')}</div>`;
+}
+
+// ── Setup card UI (Coach page) — state machine, re-renders on change ─────
+function partnerUIState() {
+  if (!cloudConfigured()) return 'unconfig';
+  if (!_cloudUser) return 'signedout';
+  return S.partnerCache ? 'paired' : 'unpaired';
+}
+
+function renderPartnerUI(force = false) {
+  const body = document.getElementById('partnerBody');
+  const pill = document.getElementById('partnerStatus');
+  if (!body) return;
+  const state = partnerUIState();
+  if (!force && state === _partnerUIKey) { if (state === 'paired') syncPairedCard(); return; }
+  _partnerUIKey = state;
+
+  const inputCls = 'flex-1 min-w-0 rounded-xl px-3 py-2.5 text-xs bg-void border border-white/10 placeholder:text-dusk/40 focus:outline-none focus:border-aurora/50 transition-colors text-bone font-mono';
+  const btnCls = 'shrink-0 glass-pill rounded-xl px-4 py-2.5 text-xs font-semibold text-aurora';
+
+  if (state === 'unconfig') {
+    pill.textContent = 'Off'; pill.style.color = '';
+    body.innerHTML = `
+      <p class="text-xs text-dusk mb-3 leading-relaxed">Share your daily progress with one partner — just done/total and streak, never your habit names. Needs a free Supabase project (see ARCHITECTURE.md).</p>
+      <div class="space-y-2">
+        <input id="sbUrl" type="text" placeholder="https://xxxx.supabase.co" class="${inputCls} w-full">
+        <div class="flex gap-2">
+          <input id="sbKey" type="password" placeholder="anon public key" class="${inputCls}">
+          <button onclick="saveCloudConfig()" class="${btnCls}">Connect</button>
+        </div>
+      </div>`;
+  } else if (state === 'signedout') {
+    pill.textContent = 'Sign in'; pill.style.color = '';
+    body.innerHTML = `
+      <p class="text-xs text-dusk mb-3 leading-relaxed">Enter your email — we'll send a magic sign-in link. No password.</p>
+      <div class="flex gap-2">
+        <input id="sbEmail" type="email" placeholder="you@example.com" class="${inputCls}">
+        <button onclick="cloudSignIn()" class="${btnCls}">Send link</button>
+      </div>
+      <p class="text-xs text-dusk mt-2" id="sbAuthStatus"></p>
+      <button onclick="resetCloudConfig()" class="text-xs text-dusk/60 mt-2">Change project settings</button>`;
+  } else if (state === 'unpaired') {
+    pill.textContent = 'Ready'; pill.style.color = '#52E3A0';
+    body.innerHTML = `
+      <p class="text-xs text-dusk mb-3 leading-relaxed">Signed in as <span class="text-bone">${escHtml(_cloudUser.email || '')}</span>. Link up: one of you creates a code, the other enters it.</p>
+      <div class="flex gap-2 mb-2">
+        <input id="sbName" type="text" maxlength="24" placeholder="Your display name" value="${escHtml(S.cloud.displayName || '')}" class="${inputCls}">
+        <button onclick="savePartnerName()" class="${btnCls}">Save</button>
+      </div>
+      <div class="flex gap-2 mb-2">
+        <button onclick="createPair()" class="${btnCls} flex-1">Create pair code</button>
+        <div class="hidden flex-1 glass-pill rounded-xl px-3 py-2.5 text-center"><span id="pairCodeOut" class="font-mono font-bold text-sm text-gold tracking-[.3em]"></span></div>
+      </div>
+      <button onclick="shareSetup()" class="${btnCls} w-full mb-2">Copy setup link for your partner</button>
+      <div class="flex gap-2">
+        <input id="pairCodeIn" type="text" maxlength="6" placeholder="Enter partner's code" class="${inputCls}" style="text-transform:uppercase">
+        <button onclick="claimPair()" class="${btnCls}">Link</button>
+      </div>
+      <div class="flex gap-3 mt-3">
+        <button onclick="refreshPartner()" class="text-xs text-dusk/60">Check pairing</button>
+        <button onclick="cloudSignOut()" class="text-xs text-dusk/60">Sign out</button>
+      </div>`;
+  } else { // paired
+    pill.textContent = 'Linked ✓'; pill.style.color = '#52E3A0';
+    body.innerHTML = `
+      <p class="text-xs text-dusk leading-relaxed">Linked with <span class="text-bone font-semibold" id="pairedName"></span>. Their progress shows on your Home screen; yours syncs automatically.</p>
+      <div class="flex gap-3 mt-3">
+        <button onclick="refreshPartner()" class="text-xs text-dusk/60">Refresh now</button>
+        <button onclick="unlinkPair()" class="text-xs text-dusk/60">Unlink</button>
+        <button onclick="cloudSignOut()" class="text-xs text-dusk/60">Sign out</button>
+      </div>`;
+    syncPairedCard();
+  }
+}
+
+function syncPairedCard() {
+  const n = document.getElementById('pairedName');
+  if (n && S.partnerCache) n.textContent = S.partnerCache.name;
+}
+
+// Copy an app link with the Supabase config embedded, so the partner's
+// device self-configures on open (anon key is public-by-design; RLS guards data)
+async function shareSetup() {
+  const link = `${location.origin}${location.pathname}?cloud=${encodeURIComponent(btoa(S.cloud.url + '|' + S.cloud.anonKey))}`;
+  try { await navigator.clipboard.writeText(link); showToast('🔗 Setup link copied — send it to them'); }
+  catch { showToast('Could not copy — share the URL + key manually'); }
+}
+
+function resetCloudConfig() {
+  S.cloud = {url:'', anonKey:'', displayName: S.cloud.displayName || ''};
+  S.partnerCache = null;
+  _sb = null; _cloudUser = null;
+  save();
+  renderPartnerUI(true); renderPartnerStrip();
+}
+
+// Refresh partner snapshot when returning to the app
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _cloudUser) refreshPartner();
+});
+
+// ═══════════════════════════════════════════
 //  NOTIFICATIONS
 // ═══════════════════════════════════════════
 const NOTIF_SCHEDULE = [
@@ -2348,6 +2669,28 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
     const greeting=h<5?'night':h<12?'morning':h<17?'afternoon':h<21?'evening':'night';
     showBanner('🔥','Welcome back',`Good ${greeting}. ${S.habits.filter(h=>h.done).length} of ${S.habits.length} habits lit today.`);
   }, 800);
+
+  // Partner sync bootstrap. The supabase-js CDN script is deferred, so it
+  // runs after this inline script — wait for DOMContentLoaded to touch it.
+  const cloudParam = new URLSearchParams(location.search).get('cloud');
+  if (cloudParam) {
+    if (!cloudConfigured()) {
+      try {
+        const [url, key] = atob(cloudParam).split('|');
+        if (url && key) {
+          S.cloud = Object.assign({displayName:''}, S.cloud, {url, anonKey: key});
+          save();
+          showToast('☁️ Partner setup received — sign in on the Coach tab');
+        }
+      } catch {}
+    }
+    try { history.replaceState(null, '', location.pathname); } catch {}
+  }
+  renderPartnerStrip();
+  window.addEventListener('DOMContentLoaded', () => {
+    if (cloudConfigured()) { sb(); initCloudSession(); }
+    renderPartnerUI();
+  });
 
   // Service worker — auto-reload when a new version activates
   if ('serviceWorker' in navigator) {

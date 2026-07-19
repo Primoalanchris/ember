@@ -1,7 +1,7 @@
-const CACHE = 'ember-cache-v13';
+const CACHE = 'ember-cache-v14';
 const PRECACHE = ['./', './index.html'];
 
-const CDN_HOSTS = ['cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const CDN_HOSTS = ['cdn.tailwindcss.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 // ── Install: pre-cache shell, skip waiting immediately ───────────────────────
 self.addEventListener('install', event => {
@@ -31,6 +31,9 @@ self.addEventListener('fetch', event => {
 
   // Never intercept non-GET (e.g. Claude API POSTs) — Cache API can't store them
   if (request.method !== 'GET') return;
+
+  // Never intercept Supabase (auth/data must be live; app handles offline)
+  if (url.hostname.endsWith('.supabase.co')) return;
 
   // CDN / fonts → stale-while-revalidate
   if (CDN_HOSTS.includes(url.hostname)) {

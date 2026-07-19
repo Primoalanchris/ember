@@ -1,15 +1,16 @@
 # Ember — Architecture
 
 > **Read this before any new task. Update it after any major refactor.**
-> Last updated: 2026-07-19 (Phase 1: storage abstraction)
+> Last updated: 2026-07-19 (Phase 2: partner sync)
 
 ## What Ember is
 
 A habit-tracker PWA, deliberately built as a **single `index.html`** with no build
 step, no framework, no package.json. Tailwind via CDN, all JS inline, fonts from
 Google Fonts. Hosted on GitHub Pages (`main` branch → https://primoalanchris.github.io/ember).
-Offline via `sw.js` (cache `ember-cache-v12`, network-first for HTML, non-GET
-requests bypass the SW) + `manifest.json` (Play-Store-ready; publish is on hold).
+Offline via `sw.js` (cache `ember-cache-v14`, network-first for HTML; non-GET
+requests and `*.supabase.co` bypass the SW) + `manifest.json` (Play-Store-ready;
+publish is on hold).
 
 **Hard constraints — do not violate:**
 - No build step, no bundler, no multi-file JS splits (logical sections inside
@@ -28,6 +29,7 @@ requests bypass the SW) + `manifest.json` (Play-Store-ready; publish is on hold)
 | `manifest.json` | PWA manifest, id `/ember/`, icons + store screenshots |
 | `icon-192/512.png`, `icon-512-maskable.png` | App icons (maskable = padded orb) |
 | `screenshot-home/stats.png` | 1080×1920 store screenshots, referenced by manifest |
+| `supabase.sql` | Phase 2 backend schema + RLS policies (run once in Supabase SQL editor) |
 
 ## Module map (sections inside index.html, in order)
 
@@ -75,9 +77,11 @@ persist(state) → write state synchronously; MUST throw when medium unavailable
   notifGranted, lastSuggestTime,
   sound: 'off'|'sfx'|'amb',
   theme: 'ember'|'ocean'|'forest'|'aurora'|'rose',   // added v3
+  cloud: { url, anonKey, displayName },              // added v4 (Supabase, optional)
+  partnerCache: null | { name, days, today, streak, fetchedAt },  // added v4
   onboarded,
   coachCallTimestamps: [],    // rolling 24h window, API spend guard
-  schemaVersion: 3,
+  schemaVersion: 4,
 }
 ```
 
@@ -114,6 +118,34 @@ runs the versioned upgrade ladder (v1→v2 no-op, v2→v3 theme default). Add a 
 - SVG liquid gradient stops use `style="stop-color:var(--…)"` (presentation
   attributes can't resolve vars; inline style can).
 
+## Partner sync (Phase 2 — Supabase, optional)
+
+**Model:** each device is authoritative for its OWN data; the cloud stores only
+daily summaries (`done/total/streak` — never habit names). Partner data is a
+read-only mirror cached in `S.partnerCache`. No merge/conflict logic exists or
+is needed at this phase. Everything is dormant until `S.cloud` is configured;
+every failure degrades to local-only with a console warning.
+
+- **Client:** supabase-js v2 via jsdelivr CDN (`defer`, so cloud bootstrap waits
+  for DOMContentLoaded in `init()`). `sb()` lazily creates the singleton client.
+- **Auth:** magic-link email (`signInWithOtp`). Supabase project needs the Site
+  URL set to the GitHub Pages URL for the redirect. Session lives in
+  supabase-js's own localStorage key (not `ember.v2`).
+- **Push:** `save()` → `schedulePush()` (3s debounce) → `pushSummary()` upserts
+  `daily_summaries` for `S.day`. No-op unless signed in.
+- **Pull:** `refreshPartner()` on sign-in, visibilitychange, and manual taps —
+  loads pair → partner profile + last-7-days summaries → `S.partnerCache`.
+- **Pairing:** 6-char codes (ambiguity-free alphabet). Creator inserts a `pairs`
+  row; partner claims it by updating `partner` where null. RLS enforces all
+  access (see `supabase.sql`; `is_paired()` is SECURITY DEFINER to avoid
+  recursive policy evaluation).
+- **Partner onboarding:** "Copy setup link" embeds `?cloud=<b64 url|key>` in the
+  app URL; `init()` applies it only when not already configured, then strips the
+  query. The anon key is public-by-design; RLS is the security boundary.
+- **UI:** setup card on Coach page (state machine: unconfig → signedout →
+  unpaired → paired, `_partnerUIKey` prevents input-wiping re-renders); compact
+  partner strip on Home (hidden unless `partnerCache` exists).
+
 ## Coach (Claude API)
 
 Browser-direct `fetch` to `api.anthropic.com/v1/messages` with the
@@ -136,8 +168,9 @@ Non-GET requests bypass the SW by design.
 
 - **Phase 1 (done 2026-07-19):** storage abstraction (`LocalStorageProvider`),
   this document.
-- **Phase 2:** social graph / shared habits (needs real backend provider:
-  Supabase + auth; partner view is the first use case).
+- **Phase 2 (code done 2026-07-19):** partner sync — summary-only sharing,
+  magic-link auth, pair codes. Owner setup: run `supabase.sql`, set Auth Site
+  URL, paste project URL + anon key into the Coach-page card.
 - **Phase 3:** predictive analytics & telemetry (privacy posture TBD —
   currently zero data leaves the device except opt-in coach calls).
 - **Phase 4:** wearables/widgets (Apple Watch via Shortcuts + URL params;
